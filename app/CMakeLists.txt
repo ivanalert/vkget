@@ -7,16 +7,27 @@ include_directories(../vk ../itemmodel)
 set(QRC_FILES qml/qml.qrc icons.qrc)
 qt5_add_resources(RCC_FILES ${QRC_FILES})
 
-add_executable(vkget WIN32
+SET(SOURCES
     main.cpp
     mainwindow.cpp
     mainwindow.h
     navigationlog.h
     utilities.cpp
     utilities.h
-    ${RCC_FILES}
 )
-    
+
+if (WIN32)
+    add_executable(vkget WIN32
+    ${SOURCES}
+    ${RCC_FILES}
+    )
+else()
+    add_executable(vkget
+    ${SOURCES}
+    ${RCC_FILES}
+    )
+endif()
+
 target_compile_definitions(vkget PRIVATE
     $<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:QT_QML_DEBUG>)
 
