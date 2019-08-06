@@ -13,12 +13,6 @@ ApplicationWindow {
     height: 600
     title: "VKGet"
 
-    Action {
-        id: urlToClipboard
-        objectName: "urlToClipboard"
-        enabled: false
-    }
-
     menuBar: ToolBar {
         id: toolBar
 

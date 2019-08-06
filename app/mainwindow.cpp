@@ -9,9 +9,10 @@
 
 #include <memory>
 #include <QtConcurrent>
+#include <QGuiApplication>
+#include <QClipboard>
 #include <QFutureWatcherBase>
 #include <QStringBuilder>
-#include <QCoreApplication>
 #include <QNetworkReply>
 #include <QNetworkCookieJar>
 #include <QJsonDocument>
@@ -323,8 +324,17 @@ void MainWindow::onGroupsViewItemRequested()
 
 void MainWindow::onUrlToClipboardTriggered()
 {
-    //Not implemented.
-    //const auto i = m_audiosView->property("currentIndex").toInt();
+    const auto i = m_audiosView->property("currentIndex").toInt();
+    const auto item = m_audios->itemFromRow<VKItem>(i);
+    switch (item->sourceStatus())
+    {
+    case VKItem::ReadyStatus:
+        QGuiApplication::clipboard()->setText(item->source().toString());
+        break;
+    case VKItem::NoStatus:
+        requestAudioSource(i);
+        break;
+    }
 }
 
 void MainWindow::requestAudioSource(int i)

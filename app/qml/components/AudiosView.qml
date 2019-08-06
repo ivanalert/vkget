@@ -63,6 +63,11 @@ ListView {
         }
     }
 
+    Action {
+        id: urlToClipboard
+        objectName: "urlToClipboard"
+    }
+
     delegate: Rectangle {
         readonly property url link: source
         readonly property int linkStatus: sourceStatus
@@ -104,7 +109,24 @@ ListView {
 
                 MenuItem {
                     action: urlToClipboard
-                    text: qsTr("Copy URL")
+                }
+
+                onAboutToShow: {
+                    var str = qsTr("Copy URL")
+                    switch (row.linkStatus) {
+                    case 0:
+                        urlToClipboard.enabled = true
+                        urlToClipboard.text = str
+                        break
+                    case 1:
+                    case 2:
+                        urlToClipboard.enabled = false
+                        urlToClipboard.text = str
+                        break
+                    default:
+                        urlToClipboard.enabled = true
+                        urlToClipboard.text = qsTr("Request URL")
+                    }
                 }
             }
         }
