@@ -14,13 +14,47 @@ void VKLoginDialogQml::open()
 {
 #ifdef NATIVE_QML
     QtWebView::initialize();
-    const QUrl qml(QStringLiteral("qrc:/nativelogin.qml"));
+    const QByteArray qml("import QtQuick 2.12\n"
+                         "import QtQuick.Window 2.12\n"
+                         "import QtWebView 1.1\n"
+                         "Window {\n"
+                         "id: root\n"
+                         "objectName: \"dialogWindow\"\n"
+                         "title: qsTr(\"VKontakte\")\n"
+                         "modality: Qt.ApplicationModal\n"
+                         "flags: Qt.Dialog\n"
+                         "visible: true\n"
+                         "width: 650\n"
+                         "height: 500\n"
+                         "WebView {\n"
+                         "id: webView\n"
+                         "objectName: \"webView\"\n"
+                         "anchors.fill: parent\n"
+                         "}\n"
+                         "}\n");
 #else
     QtWebEngine::initialize();
     QQuickWebEngineProfile::defaultProfile()->cookieStore()->deleteAllCookies();
     connect(QQuickWebEngineProfile::defaultProfile()->cookieStore(),
             &QWebEngineCookieStore::cookieAdded, this, &VKLoginDialogQml::onCookieAdded);
-    const QUrl qml(QStringLiteral("qrc:/login.qml"));
+    const QByteArray qml("import QtQuick 2.12\n"
+                         "import QtQuick.Window 2.12\n"
+                         "import QtWebEngine 1.8\n"
+                         "Window {\n"
+                         "id: root\n"
+                         "objectName: \"root\"\n"
+                         "title: qsTr(\"VKontakte\")\n"
+                         "modality: Qt.ApplicationModal\n"
+                         "flags: Qt.Dialog\n"
+                         "visible: true\n"
+                         "width: 650\n"
+                         "height: 500\n"
+                         "WebEngineView {\n"
+                         "id: webView\n"
+                         "objectName: \"webView\"\n"
+                         "anchors.fill: parent\n"
+                         "}\n"
+                         "}\n");
 #endif
 
     QUrl url;
@@ -44,7 +78,8 @@ void VKLoginDialogQml::open()
     if (!engine)
         m_engine = new QQmlEngine(this);
 
-    auto comp = std::make_unique<QQmlComponent>(m_engine, qml);
+    auto comp = std::make_unique<QQmlComponent>(m_engine);
+    comp->setData(qml, QUrl());
     m_root = comp->create();
     connect(m_root, SIGNAL(closing(QQuickCloseEvent*)), SLOT(onClosing(QQuickCloseEvent*)));
 

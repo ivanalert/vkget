@@ -103,7 +103,6 @@ ListView {
                 }
 
                 MenuItem {
-                    enabled: false
                     action: urlToClipboard
                     text: qsTr("Copy URL")
                 }

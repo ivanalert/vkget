@@ -1,5 +1,0 @@
-<RCC>
-    <qresource prefix="/">
-        <file>nativelogin.qml</file>
-    </qresource>
-</RCC>

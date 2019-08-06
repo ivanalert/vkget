@@ -16,6 +16,7 @@ ApplicationWindow {
     Action {
         id: urlToClipboard
         objectName: "urlToClipboard"
+        enabled: false
     }
 
     menuBar: ToolBar {

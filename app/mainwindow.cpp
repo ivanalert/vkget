@@ -727,9 +727,10 @@ void MainWindow::onAudiosFillFinished()
 
 void MainWindow::onLoginTriggered()
 {
+    //No need anymore.
     //If an app links statically with lib containing resource.
     //Download that resource (login.qrc).
-    Q_INIT_RESOURCE(login);
+    //Q_INIT_RESOURCE(login);
 
     auto dialog = std::make_unique<VKLoginDialogQml>(
                 m_engine, QLatin1Literal("5571207"), QLatin1Literal("5.100"),
@@ -753,7 +754,8 @@ void MainWindow::onLoginTriggered()
         //Handle failed login.
     }
 
+    //No need anymore.
     //If an app links statically with lib containing resource.
     //Clear that resource (login.qrc).
-    Q_CLEANUP_RESOURCE(login);
+    //Q_CLEANUP_RESOURCE(login);
 }
