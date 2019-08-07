@@ -1,5 +1,6 @@
 #include "playlist.h"
 #include "vkitem.h"
+#include "vkitemmodel.h"
 
 void Playlist::onModelRowsInserted(const QModelIndex &/*parent*/, int /*first*/, int /*last*/)
 {
@@ -46,8 +47,9 @@ void Playlist::onModelDataChanged(const QModelIndex &topLeft, const QModelIndex 
         const auto start = topLeft.row();
         const auto finish = bottomRight.row();
         for (auto i = start; i <= finish; ++i)
-            if (m_model->itemFromRow<VKItem>(i)->sourceStatus() == VKItem::UnavailableStatus
-                    && start >= previous() && (next() < 0 || finish <= next()))
+            if (m_model->data(m_model->index(i, 0), VKItemModel::SourceStatusRole).toInt()
+                    == VKItem::UnavailableStatus && start >= previous()
+                    && (next() < 0 || finish <= next()))
                 updatePositions(m_pos);
     }
 }
@@ -58,8 +60,8 @@ void Playlist::updatePositions(const QModelIndex &index)
     auto tmp = index;
     while (tmp.isValid())
     {
-        const auto item = m_model->itemFromIndex<VKItem>(tmp);
-        if (item->sourceStatus() != VKItem::UnavailableStatus)
+        if (m_model->data(tmp, VKItemModel::SourceStatusRole).toInt()
+                != VKItem::UnavailableStatus)
         {
             m_pos = tmp;
             changed = true;
@@ -67,8 +69,7 @@ void Playlist::updatePositions(const QModelIndex &index)
             break;
         }
 
-        //populatedIndex is thread safe if model fetchs in the same thread.
-        tmp = m_model->populatedIndex(tmp.row() + 1, 0);
+        tmp = tmp.siblingAtRow(tmp.row() + 1);
     }
 
     if (!changed && m_pos != tmp)
@@ -80,11 +81,11 @@ void Playlist::updatePositions(const QModelIndex &index)
     if (m_pos.isValid())
     {
         changed = false;
-        tmp = m_model->populatedIndex(m_pos.row() - 1, 0);
+        tmp = m_pos.siblingAtRow(m_pos.row() - 1);
         while (tmp.isValid())
         {
-            const auto item = m_model->itemFromIndex<VKItem>(tmp);
-            if (item->sourceStatus() != VKItem::UnavailableStatus)
+            if (m_model->data(tmp, VKItemModel::SourceStatusRole).toInt()
+                    != VKItem::UnavailableStatus)
             {
                 m_prev = tmp;
                 changed = true;
@@ -92,7 +93,7 @@ void Playlist::updatePositions(const QModelIndex &index)
                 break;
             }
 
-            tmp = m_model->populatedIndex(tmp.row() - 1, 0);
+            tmp = tmp.siblingAtRow(tmp.row() - 1);
         }
 
         if (!changed && m_prev != tmp)
@@ -102,19 +103,18 @@ void Playlist::updatePositions(const QModelIndex &index)
         }
 
         changed = false;
-        tmp = m_model->populatedIndex(m_pos.row() + 1, 0);
+        tmp = m_pos.siblingAtRow(m_pos.row() + 1);
         while (tmp.isValid())
         {
-            const auto item = m_model->itemFromIndex<VKItem>(tmp);
-            if (item->sourceStatus() != VKItem::UnavailableStatus)
+            if (m_model->data(tmp, VKItemModel::SourceStatusRole).toInt()
+                    != VKItem::UnavailableStatus)
             {
                 m_next = tmp;
                 emit nextChanged();
                 break;
             }
 
-            //Because model fills in other thread. To prevent race condition.
-            tmp = m_model->populatedIndex(tmp.row() + 1, 0);
+            tmp = tmp.siblingAtRow(tmp.row() + 1);
         }
 
         if (!changed && m_next != tmp)

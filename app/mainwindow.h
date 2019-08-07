@@ -3,6 +3,7 @@
 
 #include "vkresponse.h"
 #include "navigationlog.h"
+#include "basicitemmodel.h"
 
 #include <limits>
 #include <QObject>
@@ -11,9 +12,9 @@
 #include <QJsonArray>
 #include <QJsonValue>
 #include <QVector>
+#include <QSortFilterProxyModel>
 
 class VKontakte;
-class VKItemModel;
 class BasicItem;
 class Playlist;
 class DownloadManager;
@@ -61,6 +62,8 @@ private slots:
         }
     }
 
+    void onFilterEdited();
+
     void onDownloadAudioTriggered();
     void onUrlToClipboardTriggered();
 
@@ -93,6 +96,25 @@ private slots:
     void onDecodeAudioSectionFinished(QJsonArray list, const VKResponse::Section &section);
 
 private:
+    template<typename T>
+    T* sourceModel(QSortFilterProxyModel *model) const
+    {
+        return static_cast<T*>(model->sourceModel());
+    }
+
+    template<typename T>
+    T* sourceItem(QSortFilterProxyModel *model, int row) const
+    {
+        return sourceItem<T>(model, model->index(row, 0));
+    }
+
+    template<typename T>
+    T* sourceItem(QSortFilterProxyModel *model, const QModelIndex &proxy) const
+    {
+        const auto index = model->mapToSource(proxy);
+        return sourceModel<BasicItemModel>(model)->itemFromIndex<T>(index);
+    }
+
     static BasicItem* createUserItem(const QJsonValue &value, const QString &name);
 
     void fillFriends(const QJsonArray &array, const QAtomicInteger<char> &abort);
@@ -126,11 +148,11 @@ private:
     QObject *m_player = nullptr;
 
     //Models guarded by ThreadsafeNode.
-    VKItemModel *m_friends;
-    VKItemModel *m_groups;
-    VKItemModel *m_audios;
+    QSortFilterProxyModel *m_friends;
+    QSortFilterProxyModel *m_groups;
+    QSortFilterProxyModel *m_audios;
     Playlist *m_playlist;
-    VKItemModel *m_downloads;
+    QSortFilterProxyModel *m_downloads;
     DownloadManager *m_downloadManager;
 
     int m_id = std::numeric_limits<int>::max();

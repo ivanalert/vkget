@@ -66,7 +66,7 @@ ApplicationWindow {
                 Keys.onReturnPressed: { action.trigger() }
                 action: Action {
                     objectName: "refreshAction"
-                    enabled: { navigation.currentIndex < 5 }
+                    enabled: { navigation.currentIndex < 4 }
                     shortcut: StandardKey.Refresh
                 }
                 KeyNavigation.tab: homeMenuButton
@@ -79,17 +79,77 @@ ApplicationWindow {
                 Keys.onReturnPressed: { action.trigger() }
                 action: Action {
                     objectName: "homeAction"
-                    enabled: { navigation.currentIndex < 5 }
+                    enabled: { navigation.currentIndex < 4 }
                     shortcut: "Alt+Home"
                 }
-                KeyNavigation.tab: loginMenuButton
+                KeyNavigation.tab: filter
             }
 
             TextField {
+                property string friendsFilter
+                property string groupsFilter
+                property string audiosFilter
+                property string downloadsFilter
+
+                id: filter
+                objectName: "filter"
                 width: contentItem.width
                 placeholderText: qsTr("Search")
                 Layout.fillWidth: true
-                enabled: false
+                enabled: { navigation.currentIndex < 5 }
+                KeyNavigation.tab: loginMenuButton
+
+                onTextChanged: {
+                    switch (navigation.currentIndex) {
+                    case 0:
+                        friendsFilter = text;
+                        break;
+                    case 1:
+                        groupsFilter = text;
+                        break;
+                    case 2:
+                        audiosFilter = text;
+                        break;
+                    case 4:
+                        downloadsFilter = text;
+                        break;
+                    }
+                }
+
+                Connections {
+                    target: navigation
+                    onCurrentIndexChanged: {
+                        switch (navigation.currentIndex) {
+                        case 0:
+                            filter.text = filter.friendsFilter
+                            break;
+                        case 1:
+                            filter.text = filter.groupsFilter
+                            break;
+                        case 2:
+                            filter.text = filter.audiosFilter
+                            break;
+                        case 4:
+                            filter.text = filter.downloadsFilter
+                            break;
+                        }
+                    }
+                }
+
+                //Button {
+                //    icon.name: "edit-clear"
+                //    icon.source: "icons/breeze/actions/24/edit-clear.svg"
+                //    anchors.top: parent.top
+                //    anchors.right: parent.right
+                //    anchors.bottom: parent.bottom
+                //    width: 40
+                //    flat: true
+                //
+                //    onClicked: {
+                //        filter.clear()
+                //        filter.forceActiveFocus()
+                //    }
+                //}
             }
 
             Switch {
@@ -127,6 +187,11 @@ ApplicationWindow {
         focus: true
         anchors.fill: parent
         KeyNavigation.tab: playbackControl.backwardButton
+
+        Keys.onPressed: {
+            if (event.key === Qt.Key_F && (event.modifiers & Qt.ControlModifier))
+                filter.forceActiveFocus()
+        }
 
         StackLayout {
             id: rootStack

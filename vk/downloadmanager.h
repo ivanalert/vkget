@@ -66,20 +66,41 @@ class DownloadManager : public QObject
     Q_PROPERTY(QString path READ path WRITE setPath NOTIFY pathChanged)
 
 public:
-    explicit DownloadManager(VKItemModel *model, QObject *parent = nullptr)
-        : QObject(parent), m_model(model), m_netManager(new QNetworkAccessManager(this))
+    explicit DownloadManager(QObject *parent = nullptr)
+        : QObject(parent), m_netManager(new QNetworkAccessManager(this))
     {
 
     }
 
-    DownloadManager(VKItemModel *model, QNetworkAccessManager *netManager,
-                    QObject *parent = nullptr)
-        : QObject(parent), m_model(model), m_netManager(netManager)
+    explicit DownloadManager(QNetworkAccessManager *netManager, QObject *parent = nullptr)
+        : QObject(parent), m_netManager(netManager)
     {
 
     }
 
-    ~DownloadManager() override = default;
+//    explicit DownloadManager(QAbstractItemModel *model, QObject *parent = nullptr)
+//        : QObject(parent), m_model(model), m_netManager(new QNetworkAccessManager(this))
+//    {
+
+//    }
+
+//    DownloadManager(QAbstractItemModel *model, QNetworkAccessManager *netManager,
+//                    QObject *parent = nullptr)
+//        : QObject(parent), m_model(model), m_netManager(netManager)
+//    {
+
+//    }
+
+    ~DownloadManager() override
+    {
+        stop();
+    }
+
+    void setModel(QAbstractItemModel *model)
+    {
+        if (m_model != model)
+            m_model = model;
+    }
 
     void setPath(const QString &value)
     {
@@ -112,8 +133,8 @@ public slots:
     {
         if (index.isValid())
         {
-            const auto item = m_model->itemFromIndex<VKItem>(index);
-            if (item->sourceStatus() == VKItem::DownloadingStatus)
+            if (m_model->data(index, VKItemModel::SourceStatusRole).toInt()
+                    == VKItem::DownloadingStatus)
                 m_downloads.value(index)->abort();
         }
     }
@@ -156,7 +177,7 @@ private slots:
 private:
     void startDownload(const QModelIndex &index);
 
-    VKItemModel *m_model;
+    QAbstractItemModel *m_model = nullptr;
     QNetworkAccessManager *m_netManager;
     QString m_path;
     QMap<QModelIndex, DownloadItem*> m_downloads;

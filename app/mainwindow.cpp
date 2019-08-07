@@ -25,13 +25,17 @@
 #include <QDir>
 
 MainWindow::MainWindow(QObject *parent)
-    : QObject(parent), m_engine(new QQmlEngine(this)),
-      m_friends(new VKItemModel(new ThreadsafeNode, this)),
-      m_groups(new VKItemModel(new ThreadsafeNode, this)),
-      m_audios(new VKItemModel(new ThreadsafeNode, this)),
-      m_playlist(new Playlist(m_audios, this)), m_downloads(new VKItemModel(this)),
-      m_downloadManager(new DownloadManager(m_downloads)), m_navLog(new NavigationLog(this))
+    : QObject(parent), m_engine(new QQmlEngine(this)), m_friends(new QSortFilterProxyModel(this)),
+      m_groups(new QSortFilterProxyModel(this)), m_audios(new QSortFilterProxyModel(this)),
+      m_playlist(new Playlist(m_audios, this)), m_downloads(new QSortFilterProxyModel(this)),
+      m_downloadManager(new DownloadManager(this)), m_navLog(new NavigationLog(this))
 {
+    m_friends->setSourceModel(new VKItemModel(new ThreadsafeNode, this));
+    m_groups->setSourceModel(new VKItemModel(new ThreadsafeNode, this));
+    m_audios->setSourceModel(new VKItemModel(new ThreadsafeNode, this));
+    m_downloads->setSourceModel(new VKItemModel(this));
+    m_downloadManager->setModel(m_downloads->sourceModel());
+
     m_engine->rootContext()->setContextProperty("friends", m_friends);
     m_engine->rootContext()->setContextProperty("groups", m_groups);
     m_engine->rootContext()->setContextProperty("audios", m_audios);
@@ -42,6 +46,9 @@ MainWindow::MainWindow(QObject *parent)
 
     auto comp = std::make_unique<QQmlComponent>(m_engine, QUrl(QStringLiteral("qrc:/main.qml")));
     m_root = static_cast<QQuickWindow*>(comp->create());
+
+    auto test = m_root->findChild<QQuickItem*>(QStringLiteral("filter"));
+    connect(test, SIGNAL(textEdited()), SLOT(onFilterEdited()));
 
     auto action = m_root->findChild<QObject*>(QStringLiteral("loginAction"));
     connect(action, SIGNAL(triggered()), SLOT(onLoginTriggered()));
@@ -177,9 +184,9 @@ void MainWindow::usersGet(int id)
 {
     //Abort async tasks and net requests if any. Wait all tasks to finish. No need mutex here.
     abortTasks();
-    m_friends->clear();
-    m_groups->clear();
-    m_audios->clear();
+    sourceModel<VKItemModel>(m_friends)->clear();
+    sourceModel<VKItemModel>(m_groups)->clear();
+    sourceModel<VKItemModel>(m_audios)->clear();
     m_firstAudios = true;
 
     QUrlQuery query;
@@ -238,7 +245,7 @@ void MainWindow::onFriendsViewItemRequested()
 {
     auto row = sender()->property("currentIndex").toInt();
     //Threadsafe if only fill model.
-    const auto id = static_cast<VKItem*>(m_friends->itemFromRow(row))->id();
+    const auto id = m_friends->data(m_friends->index(row, 0), VKItemModel::IdRole).toInt();
     m_logHistory = true;
     usersGet(id);
 }
@@ -296,6 +303,7 @@ void MainWindow::onFriendsGetFinished()
 //async.
 void MainWindow::fillFriends(const QJsonArray &array, const QAtomicInteger<char> &abort)
 {
+    auto model = sourceModel<VKItemModel>(m_friends);
     for (const auto &val : array)
     {
         //Relaxed.
@@ -305,7 +313,7 @@ void MainWindow::fillFriends(const QJsonArray &array, const QAtomicInteger<char>
         {
             BasicItem *item = MainWindow::createUserItem(val, QStringLiteral("first_name"));
             //Threadsafe if only fill model.
-            m_friends->appendRow(item);
+            model->appendRow(item);
         }
     }
 }
@@ -314,12 +322,14 @@ void MainWindow::onFriendsFillFinished()
 {
     const auto watched = static_cast<QFutureWatcher<void>*>(sender());
     m_tasks.remove(watched);
+
+    auto model = sourceModel<VKItemModel>(m_friends);
     if (!watched->isCanceled())
     {
         QModelIndex index;
         //Threadsafe if only fill model.
-        while(m_friends->canFetchMore(index))
-            m_friends->fetchMore(index);
+        while(model->canFetchMore(index))
+            model->fetchMore(index);
 
         m_friendsView->setProperty("status", 2);
     }
@@ -337,17 +347,18 @@ void MainWindow::onGroupsViewItemRequested()
 
 void MainWindow::onDownloadAudioTriggered()
 {
+    auto model = sourceModel<VKItemModel>(m_downloads);
     const auto i = m_audiosView->property("currentIndex").toInt();
-    const auto item = m_audios->itemFromRow<VKItem>(i);
+    const auto item = sourceItem<VKItem>(m_audios, i);
     switch (item->sourceStatus())
     {
     case VKItem::ReadyStatus:
         auto download = static_cast<VKItem*>(item->clone());
         download->setText(download->text() % ".mp3");
         download->setDownloadProgress(0);
-        m_downloads->appendRow(download);
-        m_downloads->fetchMore(QModelIndex());
-        m_downloadManager->start(m_downloads->lastIndex(0));
+        model->appendRow(download);
+        model->fetchMore(QModelIndex());
+        m_downloadManager->start(model->lastIndex(0));
         break;
     }
 }
@@ -355,7 +366,7 @@ void MainWindow::onDownloadAudioTriggered()
 void MainWindow::onUrlToClipboardTriggered()
 {
     const auto i = m_audiosView->property("currentIndex").toInt();
-    const auto item = m_audios->itemFromRow<VKItem>(i);
+    const auto item = sourceItem<VKItem>(m_audios, i);
     switch (item->sourceStatus())
     {
     case VKItem::ReadyStatus:
@@ -370,7 +381,8 @@ void MainWindow::onUrlToClipboardTriggered()
 void MainWindow::requestAudioSource(int i)
 {
     //Threadsafe if only fill model.
-    const auto section = m_audios->audioReloadSection(m_audios->index(i, 0));
+    auto model = sourceModel<VKItemModel>(m_audios);
+    const auto section = model->audioReloadSection(m_audios->mapToSource(m_audios->index(i, 0)));
     if (!section.first.empty())
     {
         QUrlQuery query;
@@ -393,7 +405,7 @@ void MainWindow::onPlaylistCurrentChaged()
     const auto index = m_playlist->currentIndex();
     if (index.isValid())
     {
-        const auto item = m_audios->itemFromIndex<VKItem>(index);
+        const auto item = sourceItem<VKItem>(m_audios, index);
         switch (item->sourceStatus())
         {
         case VKItem::ReadyStatus:
@@ -460,6 +472,7 @@ void MainWindow::onDecodeAudioSectionFinished(QJsonArray list, const VKResponse:
     }
 
     int j = 0;
+    auto model = sourceModel<VKItemModel>(m_audios);
     for (const auto &range : section.second)
     {
         for (int i = range.first; i <= range.second; ++i, ++j)
@@ -468,17 +481,17 @@ void MainWindow::onDecodeAudioSectionFinished(QJsonArray list, const VKResponse:
             if (array.at(2).toString().isEmpty())
             {
                 //Threadsafe if only fill model.
-                m_audios->itemFromRow<VKItem>(i)->setSourceStatus(VKItem::UnavailableStatus);
+                model->itemFromRow<VKItem>(i)->setSourceStatus(VKItem::UnavailableStatus);
             }
             else
             {
                 //Threadsafe if only fill model.
-                auto item = m_audios->itemFromRow<VKItem>(i);
+                auto item = model->itemFromRow<VKItem>(i);
                 item->setSource(array.at(2).toString(), false);
                 item->setSourceStatus(VKItem::ReadyStatus, false);
-                const auto index = m_audios->indexFromItem(item);
+                const auto index = model->indexFromItem(item);
                 QVector<int> roles{VKItemModel::SourceRole, VKItemModel::SourceStatusRole};
-                m_audios->dataChanged(index, index, roles);
+                model->dataChanged(index, index, roles);
                 if (item->row() == m_playlist->current())
                 {
                     m_player->setProperty("source", item->source());
@@ -542,6 +555,7 @@ void MainWindow::onGroupsGetFinished()
 //async.
 void MainWindow::fillGroups(const QJsonArray &array, const QAtomicInteger<char> &abort)
 {
+    auto model = sourceModel<VKItemModel>(m_groups);
     for (const auto &val : array)
     {
         //Relaxed.
@@ -551,7 +565,7 @@ void MainWindow::fillGroups(const QJsonArray &array, const QAtomicInteger<char> 
         {
             BasicItem *item = MainWindow::createUserItem(val, QStringLiteral("name"));
             //Threadsafe if only fill model.
-            m_groups->appendRow(item);
+            model->appendRow(item);
         }
     }
 }
@@ -560,12 +574,14 @@ void MainWindow::onGroupsFillFinished()
 {
     auto watched = static_cast<QFutureWatcher<void>*>(sender());
     m_tasks.remove(watched);
+
+    auto model = sourceModel<VKItemModel>(m_groups);
     if (!watched->isCanceled())
     {
         QModelIndex index;
         //Threadsafe if only fill model.
-        while(m_groups->canFetchMore(index))
-            m_groups->fetchMore(index);
+        while(model->canFetchMore(index))
+            model->fetchMore(index);
 
         m_groupsView->setProperty("status", 2);
     }
@@ -711,6 +727,7 @@ void MainWindow::onDecodeAudioUrlsFinished()
 void MainWindow::fillAudios(const QJsonArray &list, const QAtomicInteger<char> &abort,
                             bool considerSource)
 {
+    auto model = sourceModel<VKItemModel>(m_audios);
     for (const auto &audio : list)
     {
         //Relaxed.
@@ -746,7 +763,7 @@ void MainWindow::fillAudios(const QJsonArray &list, const QAtomicInteger<char> &
             item->setSourceStatus(VKItem::ReadyStatus);
 
         //Threadsafe if only fill model.
-        m_audios->appendRow(item);
+        model->appendRow(item);
     }
 }
 
@@ -754,12 +771,14 @@ void MainWindow::onAudiosFillFinished()
 {
     auto watched = static_cast<QFutureWatcher<void>*>(sender());
     m_tasks.remove(watched);
+
+    auto model = sourceModel<VKItemModel>(m_audios);
     if (!watched->isCanceled())
     {
         QModelIndex index;
         //Threadsafe if only fill model.
-        while(m_audios->canFetchMore(index))
-            m_audios->fetchMore(index);
+        while(model->canFetchMore(index))
+            model->fetchMore(index);
 
         m_audiosView->setProperty("status", 2);
     }
@@ -798,4 +817,24 @@ void MainWindow::onLoginTriggered()
     //If an app links statically with lib containing resource.
     //Clear that resource (login.qrc).
     //Q_CLEANUP_RESOURCE(login);
+}
+
+void MainWindow::onFilterEdited()
+{
+    const auto str = sender()->property("text").toString();
+    switch (m_navigation->property("currentIndex").toInt())
+    {
+    case 0:
+        m_friends->setFilterFixedString(str);
+        break;
+    case 1:
+        m_groups->setFilterFixedString(str);
+        break;
+    case 2:
+        m_audios->setFilterFixedString(str);
+        break;
+    case 4:
+        m_downloads->setFilterFixedString(str);
+        break;
+    }
 }

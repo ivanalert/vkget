@@ -5,16 +5,16 @@
 
 void DownloadManager::startDownload(const QModelIndex &index)
 {
-    const auto item = m_model->itemFromIndex<VKItem>(index);
-    if (item->sourceStatus() == VKItem::ReadyStatus)
+    if (m_model->data(index, VKItemModel::SourceStatusRole).toInt() == VKItem::ReadyStatus)
     {
         QDir dir(m_path);
         if (dir.exists())
         {
-            auto file = new QFile(dir.absoluteFilePath(item->text()));
+            auto file = new QFile(dir.absoluteFilePath(m_model->data(index).toString()));
             if (file->open(QIODevice::WriteOnly))
             {
-                auto res = m_netManager->get(QNetworkRequest(item->source()));
+                const auto url = m_model->data(index, VKItemModel::SourceRole).toUrl();
+                auto res = m_netManager->get(QNetworkRequest(url));
                 auto download = new DownloadItem(file, res, index, this);
                 connect(download, &DownloadItem::readyRead, this,
                         &DownloadManager::onDownloadReadyRead);

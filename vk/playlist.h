@@ -1,8 +1,6 @@
 #ifndef PLAYLIST_H
 #define PLAYLIST_H
 
-#include "vkitemmodel.h"
-
 #include <QObject>
 #include <QModelIndex>
 
@@ -17,7 +15,7 @@ class Playlist : public QObject
     Q_PROPERTY(int next READ next NOTIFY nextChanged)
 
 public:
-    Playlist(VKItemModel *model, QObject *parent = nullptr)
+    Playlist(QAbstractItemModel *model, QObject *parent = nullptr)
         : QObject(parent), m_model(model)
     {
         connect(m_model, &QAbstractItemModel::rowsInserted, this, &Playlist::onModelRowsInserted);
@@ -40,7 +38,7 @@ public:
 
     void setCurrent(int i)
     {
-        setCurrentIndex(m_model->populatedIndex(i, 0));
+        setCurrentIndex(m_model->index(i, 0));
     }
 
     QModelIndex currentIndex() const
@@ -101,7 +99,7 @@ private slots:
 private:
     void updatePositions(const QModelIndex &index);
 
-    VKItemModel *m_model;
+    QAbstractItemModel *m_model;
     QModelIndex m_prev;
     QModelIndex m_pos;
     QModelIndex m_next;

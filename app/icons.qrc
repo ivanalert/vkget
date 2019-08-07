@@ -38,5 +38,8 @@
         <file>icons/breeze/actions/32/media-skip-backward.svg</file>
         <file>icons/breeze/actions/32/media-playback-start.svg</file>
         <file>icons/breeze/actions/32/media-playback-pause.svg</file>
+        <file>icons/breeze/actions/22/edit-clear.svg</file>
+        <file>icons/breeze/actions/24/edit-clear.svg</file>
+        <file>icons/breeze/actions/16/edit-clear.svg</file>
     </qresource>
 </RCC>
