@@ -16,6 +16,7 @@ class VKontakte;
 class VKItemModel;
 class BasicItem;
 class Playlist;
+class DownloadManager;
 class QQmlEngine;
 class QQuickItem;
 class QQuickWindow;
@@ -60,6 +61,7 @@ private slots:
         }
     }
 
+    void onDownloadAudioTriggered();
     void onUrlToClipboardTriggered();
 
     void logNavigation()
@@ -128,6 +130,8 @@ private:
     VKItemModel *m_groups;
     VKItemModel *m_audios;
     Playlist *m_playlist;
+    VKItemModel *m_downloads;
+    DownloadManager *m_downloadManager;
 
     int m_id = std::numeric_limits<int>::max();
 

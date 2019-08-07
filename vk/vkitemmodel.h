@@ -18,7 +18,8 @@ public:
         AudioHashRole,
         SourceStatusRole,
         CoverRole,
-        ThumbnailRole
+        ThumbnailRole,
+        DownloadProgressRole
     };
 
     explicit VKItemModel(QObject *parent = nullptr)
@@ -47,6 +48,7 @@ public:
         names[SourceStatusRole] = "sourceStatus";
         names[CoverRole] = "cover";
         names[ThumbnailRole] = "thumbnail";
+        names[DownloadProgressRole] = "downloadProgress";
         return names;
     }
 

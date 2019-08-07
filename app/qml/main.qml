@@ -2,6 +2,7 @@ import QtQuick 2.12
 import QtQuick.Controls 2.12
 import QtQuick.Layouts 1.12
 import QtMultimedia 5.12
+import QtQuick.Dialogs 1.2
 
 import "components"
 
@@ -25,6 +26,10 @@ ApplicationWindow {
                 icon.name: "application-menu"
                 icon.source: "icons/breeze/actions/24/application-menu.svg"
                 onToggled: { checked ? navigation.open() : navigation.close() }
+                Keys.onReturnPressed: {
+                    toggle()
+                    navigation.open()
+                }
                 KeyNavigation.tab: previousMenuButton
             }
 
@@ -32,9 +37,11 @@ ApplicationWindow {
                 id: previousMenuButton
                 icon.name: "go-previous"
                 icon.source: "icons/breeze/actions/24/go-previous.svg"
-                enabled: { navigationLog.hasPrevious }
+                Keys.onReturnPressed: { action.trigger() }
                 action: Action {
                     objectName: "previousAction"
+                    enabled: { navigationLog.hasPrevious && navigation.currentIndex < 5 }
+                    shortcut: StandardKey.Back
                 }
                 KeyNavigation.tab: nextMenuButton
             }
@@ -43,9 +50,11 @@ ApplicationWindow {
                 id: nextMenuButton
                 icon.name: "go-next"
                 icon.source: "icons/breeze/actions/24/go-next.svg"
-                enabled: { navigationLog.hasNext }
+                Keys.onReturnPressed: { action.trigger() }
                 action: Action {
                     objectName: "nextAction"
+                    enabled: { navigationLog.hasNext && navigation.currentIndex < 5 }
+                    shortcut: StandardKey.Forward
                 }
                 KeyNavigation.tab: refreshMenuButton
             }
@@ -54,8 +63,11 @@ ApplicationWindow {
                 id: refreshMenuButton
                 icon.name: "view-refresh"
                 icon.source: "icons/breeze/actions/24/view-refresh.svg"
+                Keys.onReturnPressed: { action.trigger() }
                 action: Action {
                     objectName: "refreshAction"
+                    enabled: { navigation.currentIndex < 5 }
+                    shortcut: StandardKey.Refresh
                 }
                 KeyNavigation.tab: homeMenuButton
             }
@@ -64,8 +76,11 @@ ApplicationWindow {
                 id: homeMenuButton
                 icon.name: "go-home"
                 icon.source: "icons/breeze/actions/24/go-home.svg"
+                Keys.onReturnPressed: { action.trigger() }
                 action: Action {
                     objectName: "homeAction"
+                    enabled: { navigation.currentIndex < 5 }
+                    shortcut: "Alt+Home"
                 }
                 KeyNavigation.tab: loginMenuButton
             }
@@ -84,11 +99,11 @@ ApplicationWindow {
 
             ToolButton {
                 id: loginMenuButton
+                Keys.onReturnPressed: { action.trigger() }
                 action: Action {
                     objectName: "loginAction"
                     text: "Log in"
                 }
-
                 KeyNavigation.tab: rootStackFocus
             }
         }
@@ -155,8 +170,6 @@ ApplicationWindow {
                 objectName: "audiosView"
                 onVisibleChanged: { focus = visible }
                 model: audios
-                Layout.fillWidth: true
-                Layout.fillHeight: true
 
                 header: Text {
                     width: contentItem.width
@@ -175,18 +188,66 @@ ApplicationWindow {
                 verticalAlignment: Text.AlignVCenter
             }
 
-            Text {
-                text: "DOWNLOADS"
-                font: root.font
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
+            DownloadsView {
+                id: downloadsView
+                objectName: "downloadsView"
+                onVisibleChanged: { focus = visible }
+                model: downloads
+
+                header: Text {
+                    width: contentItem.width
+                    font.bold: true
+                    font.pixelSize: 20
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                    text: qsTr("Downloads")
+                }
             }
 
-            Text {
-                text: "SETTINGS"
-                font: root.font
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
+            Column {
+                topPadding: 10
+
+                RowLayout {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.leftMargin: 10
+                    anchors.rightMargin: 10
+                    spacing: 10
+
+                    Text {
+                        verticalAlignment: Text.AlignVCenter
+                        font.pixelSize: root.font.pixelSize
+                        text: qsTr("Path for audio downloads:")
+                    }
+
+                    TextField {
+                        id: downloadsPathText
+                        Layout.fillWidth: true
+                        readOnly: true
+                        text: downloadManager.path
+                    }
+
+                    Button {
+                        id: downloadFileDialogButton
+                        text: "..."
+                        onClicked: {
+                            downloadFileDialog.open()
+                        }
+                    }
+
+                    FileDialog {
+                        id: downloadFileDialog
+                        title: qsTr("Choose directory")
+                        selectFolder: true
+                        //Add scheme.
+                        folder: "file://" + downloadManager.path;
+
+                        onAccepted: {
+                            //Remove scheme.
+                            downloadManager.path = fileUrl.toString().slice(7);
+                        }
+                    }
+                }
             }
         }
     }

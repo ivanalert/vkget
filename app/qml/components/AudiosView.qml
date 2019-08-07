@@ -64,6 +64,12 @@ ListView {
     }
 
     Action {
+        id: downloadAudio
+        objectName: "downloadAudio"
+        text: qsTr("Download")
+    }
+
+    Action {
         id: urlToClipboard
         objectName: "urlToClipboard"
     }
@@ -102,28 +108,25 @@ ListView {
             Menu {
                 id: contextMenu
 
-                MenuItem {
-                    enabled: false
-                    text: qsTr("Download")
-                }
-
-                MenuItem {
-                    action: urlToClipboard
-                }
+                MenuItem { action: downloadAudio }
+                MenuItem { action: urlToClipboard }
 
                 onAboutToShow: {
                     var str = qsTr("Copy URL")
                     switch (row.linkStatus) {
                     case 0:
+                        downloadAudio.enabled = true
                         urlToClipboard.enabled = true
                         urlToClipboard.text = str
                         break
                     case 1:
                     case 2:
+                        downloadAudio.enabled = false
                         urlToClipboard.enabled = false
                         urlToClipboard.text = str
                         break
                     default:
+                        downloadAudio.enabled = false
                         urlToClipboard.enabled = true
                         urlToClipboard.text = qsTr("Request URL")
                     }

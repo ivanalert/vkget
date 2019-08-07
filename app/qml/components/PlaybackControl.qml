@@ -16,6 +16,7 @@ RowLayout {
         icon.name: "media-skip-backward"
         icon.source: "qrc:/icons/breeze/actions/32/media-skip-backward.svg"
         enabled: { audioPlaylist.previous > -1 }
+        Keys.onReturnPressed: { clicked() }
         KeyNavigation.tab: playPauseButton
     }
 
@@ -34,6 +35,7 @@ RowLayout {
                 return "qrc:/icons/breeze/actions/32/media-playback-start.svg"
         }
         enabled: { audioPlaylist.current > -1 }
+        Keys.onReturnPressed: { clicked() }
         KeyNavigation.tab: nextButton
     }
 
@@ -42,6 +44,7 @@ RowLayout {
         icon.name: "media-skip-forward"
         icon.source: "qrc:/icons/breeze/actions/32/media-skip-forward.svg"
         enabled: { audioPlaylist.next > -1 }
+        Keys.onReturnPressed: { clicked() }
         KeyNavigation.tab: seekSlider
     }
 

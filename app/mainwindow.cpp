@@ -5,6 +5,7 @@
 #include "vkitem.h"
 #include "threadsafenode.h"
 #include "playlist.h"
+#include "downloadmanager.h"
 #include "utilities.h"
 
 #include <memory>
@@ -28,12 +29,15 @@ MainWindow::MainWindow(QObject *parent)
       m_friends(new VKItemModel(new ThreadsafeNode, this)),
       m_groups(new VKItemModel(new ThreadsafeNode, this)),
       m_audios(new VKItemModel(new ThreadsafeNode, this)),
-      m_playlist(new Playlist(m_audios, this)), m_navLog(new NavigationLog(this))
+      m_playlist(new Playlist(m_audios, this)), m_downloads(new VKItemModel(this)),
+      m_downloadManager(new DownloadManager(m_downloads)), m_navLog(new NavigationLog(this))
 {
     m_engine->rootContext()->setContextProperty("friends", m_friends);
     m_engine->rootContext()->setContextProperty("groups", m_groups);
     m_engine->rootContext()->setContextProperty("audios", m_audios);
     m_engine->rootContext()->setContextProperty("audioPlaylist", m_playlist);
+    m_engine->rootContext()->setContextProperty("downloads", m_downloads);
+    m_engine->rootContext()->setContextProperty("downloadManager", m_downloadManager);
     m_engine->rootContext()->setContextProperty("navigationLog", m_navLog);
 
     auto comp = std::make_unique<QQmlComponent>(m_engine, QUrl(QStringLiteral("qrc:/main.qml")));
@@ -49,6 +53,8 @@ MainWindow::MainWindow(QObject *parent)
     connect(action, SIGNAL(triggered()), SLOT(onNextTriggered()));
     action = m_root->findChild<QObject*>(QStringLiteral("homeAction"));
     connect(action, SIGNAL(triggered()), SLOT(onHomeTriggered()));
+    action = m_root->findChild<QObject*>(QStringLiteral("downloadAudio"));
+    connect(action, SIGNAL(triggered()), SLOT(onDownloadAudioTriggered()));
     action = m_root->findChild<QObject*>(QStringLiteral("urlToClipboard"));
     connect(action, SIGNAL(triggered()), SLOT(onUrlToClipboardTriggered()));
 
@@ -65,8 +71,7 @@ MainWindow::MainWindow(QObject *parent)
     connect(m_playlist, &Playlist::currentChanged, this, &MainWindow::onPlaylistCurrentChaged);
 
     //Load settings. Temporary, to prevent login every time app launches.
-    QSettings settings(QSettings::UserScope, QStringLiteral("ivanalert@mail.ru"),
-                       QStringLiteral("VKGet"));
+    QSettings settings;
     settings.beginGroup(QStringLiteral("vk"));
     m_vk = new VKontakte(settings.value(QStringLiteral("api_version")).toString(),
                          settings.value(QStringLiteral("access_token")).toString(), this);
@@ -101,13 +106,18 @@ MainWindow::MainWindow(QObject *parent)
         m_audiosView->setProperty("status", 3);
     }
     settings.endGroup();
+    settings.beginGroup(QStringLiteral("downloads"));
+    m_downloadManager->setPath(
+                settings.value(QStringLiteral("path"),
+                               QStandardPaths::writableLocation(
+                                   QStandardPaths::DownloadLocation)).toString());
+    settings.endGroup();
 }
 
 MainWindow::~MainWindow()
 {
     //Save settings. Temporary, to prevent login every time app launches.
-    QSettings settings(QSettings::UserScope, QStringLiteral("ivanalert@mail.ru"),
-                       QStringLiteral("VKGet"));
+    QSettings settings;
     settings.beginGroup(QStringLiteral("vk"));
     settings.setValue(QStringLiteral("api_version"), m_vk->apiVersion());
     settings.setValue(QStringLiteral("access_token"), m_vk->accessToken());
@@ -133,6 +143,9 @@ MainWindow::~MainWindow()
         }
     }
     settings.endArray();
+    settings.endGroup();
+    settings.beginGroup(QStringLiteral("downloads"));
+    settings.setValue(QStringLiteral("path"), m_downloadManager->path());
     settings.endGroup();
 }
 
@@ -320,6 +333,23 @@ void MainWindow::onGroupsViewItemRequested()
     //int id = static_cast<VKItem*>(m_groups->itemFromRow(row))->id();
     //m_logHistory = true;
     //usersGet(id);
+}
+
+void MainWindow::onDownloadAudioTriggered()
+{
+    const auto i = m_audiosView->property("currentIndex").toInt();
+    const auto item = m_audios->itemFromRow<VKItem>(i);
+    switch (item->sourceStatus())
+    {
+    case VKItem::ReadyStatus:
+        auto download = static_cast<VKItem*>(item->clone());
+        download->setText(download->text() % ".mp3");
+        download->setDownloadProgress(0);
+        m_downloads->appendRow(download);
+        m_downloads->fetchMore(QModelIndex());
+        m_downloadManager->start(m_downloads->lastIndex(0));
+        break;
+    }
 }
 
 void MainWindow::onUrlToClipboardTriggered()

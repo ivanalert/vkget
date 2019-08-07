@@ -14,7 +14,9 @@ public:
         ReadyStatus,
         LoadingStatus,
         UnavailableStatus,
-        NoStatus
+        NoStatus,
+        DownloadingStatus,
+        DownloadPausedStatus
     };
 
     VKItem(const int id, const QString &name, BasicItem *parent = nullptr)
@@ -122,6 +124,16 @@ public:
     QUrl thumbnail() const
     {
         return data(0, VKItemModel::ThumbnailRole).toUrl();
+    }
+
+    void setDownloadProgress(double value, bool notify = true)
+    {
+        setData(0, value, VKItemModel::DownloadProgressRole, notify);
+    }
+
+    double downloadProgress() const
+    {
+        return data(0, VKItemModel::DownloadProgressRole).toDouble();
     }
 
 protected:

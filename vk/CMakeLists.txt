@@ -56,6 +56,8 @@ add_library(vk STATIC
     sectionmanager.h
     playlist.cpp
     playlist.h
+    downloadmanager.cpp
+    downloadmanager.h
     ${VK_LOGIN_DIALOG}
 )
 

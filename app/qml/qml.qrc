@@ -6,5 +6,6 @@
         <file>components/AudiosView.qml</file>
         <file>components/PlaybackControl.qml</file>
         <file>qtquickcontrols2.conf</file>
+        <file>components/DownloadsView.qml</file>
     </qresource>
 </RCC>
