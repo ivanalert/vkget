@@ -280,13 +280,12 @@ public:
         return m_row;
     }
 
-    virtual void insertRows(int row, const QList<BasicItem*> &items);
+    virtual void insertRows(int row, const QList<BasicItem*> &items, bool notify = true);
     virtual void removeRows(int row, int count);
     virtual void insertColumns(int column, int count);
     virtual void removeColumns(int column, int count);
 
-    void insertRows(int row, int count, BasicItem *prototype = nullptr);
-
+    void insertRows(int row, int count, BasicItem *prototype = nullptr, bool notify = true);
     void insertRow(int row, BasicItem *item)
     {
         insertRows(row, QList<BasicItem*>({item}));
@@ -299,12 +298,12 @@ public:
 
     void appendRow(BasicItem *item)
     {
-        insertRows(childItemCount(), QList<BasicItem*>{item});
+        insertRows(childItemCount(), QList<BasicItem*>{item}, false);
     }
 
     void appendRow()
     {
-        insertRows(childItemCount(), 1);
+        insertRows(childItemCount(), 1, nullptr, false);
     }
 
 protected:

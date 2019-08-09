@@ -21,6 +21,7 @@ add_executable(testvk
 
 target_link_libraries(testvk PRIVATE
     Qt5::Core
+    Qt5::Gui
     Qt5::Network
     Qt5::Test
     vk

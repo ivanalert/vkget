@@ -150,7 +150,7 @@ QModelIndex BasicItemModel::index(int row, int column, const QModelIndex &parent
 bool BasicItemModel::insertRows(int row, int count, const QModelIndex &parent)
 {
     BasicItem *parentItem = getItem(parent);
-    if (row < 0 || row > parentItem->childItemCount())
+    if (row < 0 || row > parentItem->populatedChildItemCount())
         return false;
 
     parentItem->insertRows(row, count, m_prototype);
@@ -160,7 +160,7 @@ bool BasicItemModel::insertRows(int row, int count, const QModelIndex &parent)
 bool BasicItemModel::removeRows(int row, int count, const QModelIndex &parent)
 {
     BasicItem *parentItem = getItem(parent);
-    if (row < 0 || row + count > parentItem->childItemCount())
+    if (row < 0 || row + count > parentItem->populatedChildItemCount())
         return false;
 
     parentItem->removeRows(row, count);

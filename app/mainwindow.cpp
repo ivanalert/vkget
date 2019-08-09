@@ -409,11 +409,14 @@ void MainWindow::onPlaylistCurrentChaged()
         switch (item->sourceStatus())
         {
         case VKItem::ReadyStatus:
-            m_player->setProperty("source", item->source());
-            m_playbackControl->setProperty("title", item->text());
-            m_playbackControl->setProperty("duration", item->metadata());
-            QMetaObject::invokeMethod(m_player, "stop");
-            QMetaObject::invokeMethod(m_player, "play");
+            if (m_player->property("source").toUrl() != item->source())
+            {
+                m_playbackControl->setProperty("title", item->text());
+                m_playbackControl->setProperty("duration", item->metadata());
+                m_player->setProperty("source", item->source());
+                QMetaObject::invokeMethod(m_player, "stop");
+                QMetaObject::invokeMethod(m_player, "play");
+            }
             break;
         case VKItem::NoStatus:
             requestAudioSource(index.row());
@@ -492,7 +495,7 @@ void MainWindow::onDecodeAudioSectionFinished(QJsonArray list, const VKResponse:
                 const auto index = model->indexFromItem(item);
                 QVector<int> roles{VKItemModel::SourceRole, VKItemModel::SourceStatusRole};
                 model->dataChanged(index, index, roles);
-                if (item->row() == m_playlist->current())
+                if (m_audios->mapFromSource(index) == m_playlist->currentIndex())
                 {
                     m_player->setProperty("source", item->source());
                     m_playbackControl->setProperty("title", item->text());
@@ -502,6 +505,11 @@ void MainWindow::onDecodeAudioSectionFinished(QJsonArray list, const VKResponse:
                 }
             }
         }
+
+        //const auto topLeft = model->index(range.first, 0);
+        //const auto bottomRight = model->index(range.second, 0);
+        //QVector<int> roles{VKItemModel::SourceRole, VKItemModel::SourceStatusRole};
+        //model->dataChanged(topLeft, bottomRight, roles);
     }
 }
 

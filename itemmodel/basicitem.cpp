@@ -67,11 +67,6 @@ BasicItem::~BasicItem()
 {
     if (hasChildItems())
         removeRows(0, childItemCount());
-    if (hasParentItem())
-    {
-        parentItem()->m_childItems.removeAt(row());
-        parentItem()->updateChildRows(row());
-    }
 }
 
 void BasicItem::emitDataChanged(int firstColumn, int lastColumn, const QVector<int> &roles)
@@ -166,20 +161,37 @@ QModelIndex BasicItem::modelIndex() const
         return QModelIndex();
 }
 
-void BasicItem::insertRows(int row, const QList<BasicItem*> &items)
+void BasicItem::insertRows(int row, const QList<BasicItem*> &items, bool notify)
 {
     int pos = row;
-    for (BasicItem *item : items)
+    if (m_model && notify)
     {
-        item->m_parentItem = this;
-        item->m_model = m_model;
-        m_childItems.insert(pos++, item);
-    }
+        m_model->beginInsertRows(m_model->indexFromItem(this), row, row + items.size() - 1);
+        for (BasicItem *item : items)
+        {
+            item->m_parentItem = this;
+            item->m_model = m_model;
+            m_childItems.insert(pos++, item);
+        }
 
-    updateChildItems(row);
+        m_populatedChildItemCount += items.size();
+        updateChildItems(row);
+        m_model->endInsertRows();
+    }
+    else
+    {
+        for (BasicItem *item : items)
+        {
+            item->m_parentItem = this;
+            item->m_model = m_model;
+            m_childItems.insert(pos++, item);
+        }
+
+        updateChildItems(row);
+    }
 }
 
-void BasicItem::insertRows(int row, int count, BasicItem *prototype)
+void BasicItem::insertRows(int row, int count, BasicItem *prototype, bool notify)
 {
     if (!prototype)
         prototype = this;
@@ -189,17 +201,7 @@ void BasicItem::insertRows(int row, int count, BasicItem *prototype)
     for (int i = 0; i < count; ++i)
         items.append(prototype->clone());
 
-    insertRows(row, items);
-
-    /*for (int i = row, end = row + count; i < end; ++i)
-    {
-        BasicItem *item = prototype->clone();
-        item->m_parentItem = this;
-        item->m_model = m_model;
-        m_childItems.insert(i, item);
-    }
-
-    updateChildItems(row);*/
+    insertRows(row, items, notify);
 }
 
 void BasicItem::removeRows(int row, int count)

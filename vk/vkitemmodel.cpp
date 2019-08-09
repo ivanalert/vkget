@@ -14,7 +14,8 @@ VKResponse::Section VKItemModel::audioReloadSection(const QModelIndex &start)
     while (tmp.isValid() && counter < 10)
     {
         //Need to test.
-        /*if (data(tmp, SourceRole).toUrl().isEmpty()
+        int i = tmp.row();
+        if (data(tmp, SourceRole).toUrl().isEmpty()
                 && data(tmp, SourceStatusRole).toInt() != VKItem::UnavailableStatus)
         {
             setData(tmp, VKItem::LoadingStatus, SourceStatusRole);
@@ -35,15 +36,20 @@ VKResponse::Section VKItemModel::audioReloadSection(const QModelIndex &start)
             if (in && section.second.last().second + 1 == i)
                 section.second.last().second = i;
             else
+            {
+                //const auto topLeft = index(section.second.last().first, 0);
+                //const auto bottomRight = index(section.second.last().second, 0);
+                //const QVector<int> roles{SourceStatusRole};
+                //emit dataChanged(topLeft, bottomRight, roles);
                 section.second.append(VKResponse::Range(i, i));
+            }
 
             in = true;
             if (section.first.size() == 10)
                 return section;
-        }*/
+        }
 
-        int i = tmp.row();
-        const auto item = itemFromIndex<VKItem>(tmp);
+        /*const auto item = itemFromIndex<VKItem>(tmp);
         if (item->source().isEmpty() && item->sourceStatus() != VKItem::UnavailableStatus)
         {
             item->setSourceStatus(VKItem::LoadingStatus);
@@ -70,7 +76,7 @@ VKResponse::Section VKItemModel::audioReloadSection(const QModelIndex &start)
             in = true;
             if (section.first.size() == 10)
                 return section;
-        }
+        }*/
 
         tmp = tmp.siblingAtRow(i + 1);
         ++counter;

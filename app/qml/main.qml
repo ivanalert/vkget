@@ -94,7 +94,7 @@ ApplicationWindow {
                 id: filter
                 objectName: "filter"
                 width: contentItem.width
-                placeholderText: qsTr("Search")
+                placeholderText: qsTr("Filter")
                 Layout.fillWidth: true
                 enabled: { navigation.currentIndex < 5 }
                 KeyNavigation.tab: loginMenuButton
@@ -113,6 +113,23 @@ ApplicationWindow {
                     case 4:
                         downloadsFilter = text;
                         break;
+                    }
+                }
+
+                Button {
+                    flat: true
+                    icon.name: "edit-clear"
+                    icon.source: "icons/breeze/actions/24/edit-clear.svg"
+                    anchors.top: parent.top
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    width: 40
+                    enabled: filter.length
+
+                    onClicked: {
+                        filter.clear()
+                        filter.textEdited()
+                        filter.forceActiveFocus()
                     }
                 }
 
@@ -135,25 +152,10 @@ ApplicationWindow {
                         }
                     }
                 }
-
-                //Button {
-                //    icon.name: "edit-clear"
-                //    icon.source: "icons/breeze/actions/24/edit-clear.svg"
-                //    anchors.top: parent.top
-                //    anchors.right: parent.right
-                //    anchors.bottom: parent.bottom
-                //    width: 40
-                //    flat: true
-                //
-                //    onClicked: {
-                //        filter.clear()
-                //        filter.forceActiveFocus()
-                //    }
-                //}
             }
 
             Switch {
-                text: "Global"
+                text: "Search"
                 enabled: false
             }
 
@@ -178,7 +180,6 @@ ApplicationWindow {
         onClosed: {
             if (rootMenuButton.checked === true)
                 rootMenuButton.checked = false
-            rootStackFocus.focus = true
         }
     }
 
