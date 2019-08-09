@@ -38,10 +38,10 @@ public:
     }
 
     //Protect model when it fills.
-    void insertRows(int row, const QList<BasicItem *> &items) override
+    void insertRows(int row, const QList<BasicItem *> &items, bool notify = true) override
     {
         QMutexLocker lk(&m_mutex);
-        BasicItem::insertRows(row, items);
+        BasicItem::insertRows(row, items, notify);
     }
 
     //Protect model when it remove items.

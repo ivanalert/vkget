@@ -1,8 +1,6 @@
 #ifndef PLAYLIST_H
 #define PLAYLIST_H
 
-#include "vkitemmodel.h"
-
 #include <QObject>
 #include <QModelIndex>
 
@@ -17,10 +15,10 @@ class Playlist : public QObject
     Q_PROPERTY(int next READ next NOTIFY nextChanged)
 
 public:
-    Playlist(VKItemModel *model, QObject *parent = nullptr)
+    Playlist(QAbstractItemModel *model, QObject *parent = nullptr)
         : QObject(parent), m_model(model)
     {
-        connect(m_model, &QAbstractItemModel::rowsInserted, this, &Playlist::onModelRowsInserted);
+        connect(m_model, SIGNAL(rowsInserted(const QModelIndex&, int, int)), SLOT(invalidate()));
         connect(m_model, &QAbstractItemModel::rowsRemoved, this, &Playlist::onModelRowsRemoved);
         connect(m_model, &QAbstractItemModel::rowsMoved, this, &Playlist::onModelRowsMoved);
         connect(m_model, &QAbstractItemModel::modelReset, this, &Playlist::onModelReset);
@@ -40,7 +38,7 @@ public:
 
     void setCurrent(int i)
     {
-        setCurrentIndex(m_model->populatedIndex(i, 0));
+        setCurrentIndex(m_model->index(i, 0));
     }
 
     QModelIndex currentIndex() const
@@ -81,12 +79,17 @@ signals:
 public slots:
     void moveBackward()
     {
-        setCurrent(previous());
+        setCurrentIndex(previousIndex());
     }
 
     void moveForward()
     {
-        setCurrent(next());
+        setCurrentIndex(nextIndex());
+    }
+
+    void invalidate()
+    {
+        updatePositions(m_pos);
     }
 
 private slots:
@@ -99,11 +102,14 @@ private slots:
                             const QVector<int> &roles);
 
 private:
-    void updatePositions(const QModelIndex &index);
+    QModelIndex updatePosition(const QModelIndex &from, int step);
+    void updatePreviousPosition(const QModelIndex &from);
+    void updateNextPosition(const QModelIndex &from);
+    void updatePositions(const QModelIndex &from);
 
-    VKItemModel *m_model;
+    QAbstractItemModel *m_model;
     QModelIndex m_prev;
-    QModelIndex m_pos;
+    QPersistentModelIndex m_pos;
     QModelIndex m_next;
     QModelIndex m_prevPos;
 };

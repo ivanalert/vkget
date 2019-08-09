@@ -14,6 +14,15 @@ ApplicationWindow {
     height: 600
     title: "VKGet"
 
+    Shortcut {
+        autoRepeat: false
+        sequence: StandardKey.Find
+        onActivated: {
+            filter.forceActiveFocus()
+            filter.selectAll()
+        }
+    }
+
     menuBar: ToolBar {
         id: toolBar
 
@@ -66,7 +75,7 @@ ApplicationWindow {
                 Keys.onReturnPressed: { action.trigger() }
                 action: Action {
                     objectName: "refreshAction"
-                    enabled: { navigation.currentIndex < 5 }
+                    enabled: { navigation.currentIndex < 4 }
                     shortcut: StandardKey.Refresh
                 }
                 KeyNavigation.tab: homeMenuButton
@@ -79,21 +88,83 @@ ApplicationWindow {
                 Keys.onReturnPressed: { action.trigger() }
                 action: Action {
                     objectName: "homeAction"
-                    enabled: { navigation.currentIndex < 5 }
+                    enabled: { navigation.currentIndex < 4 }
                     shortcut: "Alt+Home"
                 }
-                KeyNavigation.tab: loginMenuButton
+                KeyNavigation.tab: filter
             }
 
             TextField {
+                property string friendsFilter
+                property string groupsFilter
+                property string audiosFilter
+                property string downloadsFilter
+
+                id: filter
+                objectName: "filter"
                 width: contentItem.width
-                placeholderText: qsTr("Search")
+                placeholderText: qsTr("Filter")
                 Layout.fillWidth: true
-                enabled: false
+                enabled: { navigation.currentIndex < 5 }
+                KeyNavigation.tab: loginMenuButton
+
+                onTextChanged: {
+                    switch (navigation.currentIndex) {
+                    case 0:
+                        friendsFilter = text;
+                        break;
+                    case 1:
+                        groupsFilter = text;
+                        break;
+                    case 2:
+                        audiosFilter = text;
+                        break;
+                    case 4:
+                        downloadsFilter = text;
+                        break;
+                    }
+                }
+
+                Button {
+                    flat: true
+                    icon.name: "edit-clear"
+                    icon.source: "icons/breeze/actions/24/edit-clear.svg"
+                    anchors.top: parent.top
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    width: 40
+                    enabled: filter.length
+
+                    onClicked: {
+                        filter.clear()
+                        filter.textEdited()
+                        filter.forceActiveFocus()
+                    }
+                }
+
+                Connections {
+                    target: navigation
+                    onCurrentIndexChanged: {
+                        switch (navigation.currentIndex) {
+                        case 0:
+                            filter.text = filter.friendsFilter
+                            break;
+                        case 1:
+                            filter.text = filter.groupsFilter
+                            break;
+                        case 2:
+                            filter.text = filter.audiosFilter
+                            break;
+                        case 4:
+                            filter.text = filter.downloadsFilter
+                            break;
+                        }
+                    }
+                }
             }
 
             Switch {
-                text: "Global"
+                text: "Search"
                 enabled: false
             }
 
@@ -118,7 +189,6 @@ ApplicationWindow {
         onClosed: {
             if (rootMenuButton.checked === true)
                 rootMenuButton.checked = false
-            rootStackFocus.focus = true
         }
     }
 
@@ -194,18 +264,42 @@ ApplicationWindow {
                 onVisibleChanged: { focus = visible }
                 model: downloads
 
-                header: Text {
+                header: RowLayout {
                     width: contentItem.width
-                    font.bold: true
-                    font.pixelSize: 20
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                    text: qsTr("Downloads")
+
+                    Row {
+                        Layout.fillHeight: true
+                        Layout.alignment: Qt.AlignCenter
+                        spacing: 10
+
+                        Text {
+                            font.bold: true
+                            font.pixelSize: 20
+                            anchors.top: parent.top
+                            anchors.bottom: parent.bottom
+                            verticalAlignment: Text.AlignVCenter
+                            text: qsTr("Downloads")
+                        }
+
+                        Button {
+                            id: stopAllDownloads
+                            objectName: "stopAllDownloads"
+                            text: qsTr("Stop all")
+                            enabled: downloadManager.downloadCount
+                        }
+
+                        Button {
+                            id: clearAllDownloads
+                            objectName: "clearAllDownloads"
+                            text: qsTr("Clear all")
+                        }
+                    }
                 }
             }
 
             Column {
                 topPadding: 10
+                spacing: 10
 
                 RowLayout {
                     anchors.left: parent.left
@@ -240,12 +334,24 @@ ApplicationWindow {
                         title: qsTr("Choose directory")
                         selectFolder: true
                         //Add scheme.
-                        folder: "file://" + downloadManager.path;
+                        folder: { "file://" + downloadManager.path; }
 
                         onAccepted: {
                             //Remove scheme.
                             downloadManager.path = fileUrl.toString().slice(7);
                         }
+                    }
+                }
+
+                RowLayout {
+                    anchors.leftMargin: 10
+                    anchors.rightMargin: 10
+                    spacing: 10
+
+                    CheckBox {
+                        text: qsTr("Overwite existing files")
+                        checked: downloadManager.overwrite
+                        onToggled: { downloadManager.overwrite = checked }
                     }
                 }
             }

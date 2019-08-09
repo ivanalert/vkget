@@ -2,6 +2,8 @@
 
 #include "vkontakte.h"
 #include "vkresponse.h"
+#include "playlist.h"
+#include "vkitemmodel.h"
 
 class TestVK: public QObject
 {
@@ -21,8 +23,7 @@ private slots:
     void loadGroup();
     void decodeUrl_data();
     void decodeUrl();
-    void sectionsForReload();
-    void manageSection();
+    void testPlaylist();
     void cleanupTestCase();
 };
 
@@ -254,69 +255,38 @@ void TestVK::decodeUrl()
     QVERIFY(QUrl(res).isValid());
 }
 
-void TestVK::sectionsForReload()
+void TestVK::testPlaylist()
 {
-    QFile in(QFINDTESTDATA("section1.json"));
-    in.open(QIODevice::ReadOnly);
-    const auto ls1 = QJsonDocument::fromJson(in.readAll()).object().value("list").toArray();
-    in.close();
+    auto model = std::make_unique<VKItemModel>();
+    model->setFetchLimit(1000);
+    model->insertRows(0, 1000);
 
-    const auto secs1 = VKResponse::audioSectionsForReload(ls1);
-    QVERIFY(secs1.size() == 1);
-    QVERIFY(secs1.at(0).second.size() == 2);
-    QPair<int, int> secs1Range1(81, 81);
-    QVERIFY(secs1.at(0).second.at(0) == secs1Range1);
-    QPair<int, int> secs1Range2(93, 93);
-    QVERIFY(secs1.at(0).second.at(1) == secs1Range2);
+    auto playlist = std::make_unique<Playlist>(model.get());
 
-    in.setFileName(QFINDTESTDATA("section2.json"));
-    in.open(QIODevice::ReadOnly);
-    const auto ls2 = QJsonDocument::fromJson(in.readAll()).object().value("list").toArray();
-    in.close();
+    playlist->setCurrent(9);
+    QVERIFY(playlist->previous() == 8);
+    QVERIFY(playlist->current() == 9);
+    QVERIFY(playlist->next() == 10);
 
-    const auto secs2 = VKResponse::audioSectionsForReload(ls2);
-    QVERIFY(secs2.size() == 18);
-    QVERIFY(secs2.at(0).first.size() == 10);
-    QVERIFY(secs2.at(0).second.size() == 1);
-    QVERIFY(secs2.at(7).first.size() == 10);
-    QVERIFY(secs2.at(7).second.size() == 1);
-    QVERIFY(secs2.at(12).first.size() == 10);
-    QVERIFY(secs2.at(12).second.size() == 1);
-    QPair<int, int> secs2Range1(0, 9);
-    QVERIFY(secs2.at(0).second.at(0) == secs2Range1);
-    QPair<int, int> secs2Range2(10, 19);
-    QVERIFY(secs2.at(1).second.at(0) == secs2Range2);
+    model->removeRows(10, 10);
+    QVERIFY(playlist->previous() == 8);
+    QVERIFY(playlist->current() == 9);
+    QVERIFY(playlist->next() == 10);
 
-    in.setFileName(QFINDTESTDATA("section_mixed.json"));
-    in.open(QIODevice::ReadOnly);
-    const auto ls3 = QJsonDocument::fromJson(in.readAll()).array();
-    in.close();
+    model->removeRows(0, 9);
+    QVERIFY(playlist->previous() == -1);
+    QVERIFY(playlist->current() == 0);
+    QVERIFY(playlist->next() == 1);
 
-    const auto secs3 = VKResponse::audioSectionsForReload(ls3);
-    QVERIFY(secs3.size() == 2);
+    model->insertRows(0, 100);
+    QVERIFY(playlist->previous() == 99);
+    QVERIFY(playlist->current() == 100);
+    QVERIFY(playlist->next() == 101);
 
-    QVERIFY(secs3.at(0).second.size() == 6);
-    QPair<int, int> secs3Range1(0, 0);
-    QVERIFY(secs3.at(0).second.at(0) == secs3Range1);
-    QPair<int, int> secs3Range2(2, 2);
-    QVERIFY(secs3.at(0).second.at(1) == secs3Range2);
-    QPair<int, int> secs3Range3(4, 4);
-    QVERIFY(secs3.at(0).second.at(2) == secs3Range3);
-    QPair<int, int> secs3Range4(81, 81);
-    QVERIFY(secs3.at(0).second.at(3) == secs3Range4);
-    QPair<int, int> secs3Range5(89, 89);
-    QVERIFY(secs3.at(0).second.at(4) == secs3Range5);
-    QPair<int, int> secs3Range6(93, 97);
-    QVERIFY(secs3.at(0).second.at(5) == secs3Range6);
-
-    QVERIFY(secs3.at(1).second.size() == 1);
-    QPair<int, int> secs3Range7(98, 98);
-    QVERIFY(secs3.at(1).second.at(0) == secs3Range7);
-}
-
-void TestVK::manageSection()
-{
-    //Use sec1.json and sec2.json.
+    model->removeRows(0, 101);
+    QVERIFY(playlist->previous() == -1);
+    QVERIFY(playlist->current() == -1);
+    QVERIFY(playlist->next() == -1);
 }
 
 void TestVK::cleanupTestCase()

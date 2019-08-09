@@ -16,8 +16,59 @@ private slots:
 
 void TestBasicItemModel::testModel()
 {
-    BasicItemModel model(1);
-    QAbstractItemModelTester tester(&model);
+    auto model = std::make_unique<BasicItemModel>(1);
+    auto tester = std::make_unique<QAbstractItemModelTester>(model.get());
+    tester.reset();
+
+    //If add items through appendRow methods, no insertRows signals emits and rowCount remains
+    //unchanged until you call fetchMore method, if add items through insertRows methods emits
+    //insertRows signals and rowCount changes.
+    model->clear();
+    model->setFetchLimit(1000);
+    model->insertRows(0, 1000);
+    QVERIFY(model->rowCount() == 1000);
+    model->appendRow(new BasicItem);
+    QVERIFY(model->rowCount() == 1000);
+    model->fetchMore(QModelIndex());
+    QVERIFY(model->rowCount() == 1001);
+    model->removeRows(10, 10);
+    QVERIFY(model->rowCount() == 991);
+    model->removeRows(0, 9);
+    QVERIFY(model->rowCount() == 982);
+    model->insertRows(0, 100);
+    QVERIFY(model->rowCount() == 1082);
+    model->removeRows(0, 100);
+    QVERIFY(model->rowCount() == 982);
+
+    //If item not in the model, then no one signals emits. When item was added to the model it can
+    //be removed only through model or through parent item in the model. Model takes ownership of
+    //the item.
+    BasicItem *outer = new BasicItem;
+    outer->appendRow();
+    outer->appendRow();
+    QVERIFY(outer->rowCount() == 0);
+    outer->insertRows(0, 10);
+    QVERIFY(outer->rowCount() == 0);
+    QVERIFY(outer->childItemCount() == 12);
+
+    model->appendRow(outer);
+    QVERIFY(model->rowCount() == 982);
+    model->fetchMore(model->index(982, 0));
+    QVERIFY(model->rowCount(model->index(982, 0)) == 12);
+    QVERIFY(model->rowCount() == 982);
+    model->fetchMore(QModelIndex());
+    QVERIFY(model->rowCount() == 983);
+
+    //Can't insert or remove items beyond populated items. But you can get index beyond populated
+    //items and use it to get data.
+    model->appendRow(new BasicItem);
+    QVERIFY(model->insertRows(984, 1) == false);
+    model->fetchMore(QModelIndex());
+    QVERIFY(model->insertRows(984, 1));
+    model->appendRow(new BasicItem);
+    QVERIFY(model->removeRows(985, 1) == false);
+    model->fetchMore(QModelIndex());
+    QVERIFY(model->removeRows(985, 1));
 }
 
 void TestBasicItemModel::testThreadSafeRootNode()
