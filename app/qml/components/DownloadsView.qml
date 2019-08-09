@@ -10,7 +10,6 @@ ListView {
         id: startDownload
         objectName: "startDownload"
         text: qsTr("Start download")
-        enabled: false
     }
 
     Action {
@@ -24,7 +23,6 @@ ListView {
         id: stopDownload
         objectName: "stopDownload"
         text: qsTr("Stop download")
-        enabled: false
     }
 
     Action {
@@ -35,6 +33,8 @@ ListView {
     }
 
     delegate: Item {
+        readonly property int linkStatus: sourceStatus
+
         id: row
         anchors.left: parent.left
         anchors.right: parent.right
@@ -54,21 +54,25 @@ ListView {
             Menu {
                 id: contextMenu
 
-                MenuItem {
-                    action: startDownload
+                onAboutToShow: {
+                    switch (row.linkStatus) {
+                    case 0:
+                        startDownload.enabled = true
+                        stopDownload.enabled = false
+                        break
+                    case 4:
+                        stopDownload.enabled = true
+                        startDownload.enabled = false
+                    }
                 }
 
-                MenuItem {
-                    action: pauseDownload
-                }
+                MenuItem { action: startDownload }
 
-                MenuItem {
-                    action: stopDownload
-                }
+                MenuItem { action: pauseDownload }
 
-                MenuItem {
-                    action: resumeDownload
-                }
+                MenuItem { action: stopDownload }
+
+                MenuItem { action: resumeDownload }
             }
         }
 
@@ -79,18 +83,23 @@ ListView {
             spacing: 10
 
             Column {
+                Layout.fillWidth: true
+
                 Label {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
                     text: display
                     elide: Text.ElideMiddle
                 }
 
                 Label {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
                     text: "Here are will be error messages"
                 }
             }
 
             ProgressBar {
-                Layout.alignment: Qt.AlignRight
                 value: downloadProgress
             }
         }

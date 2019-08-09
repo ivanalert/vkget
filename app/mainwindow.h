@@ -67,6 +67,10 @@ private slots:
     void onDownloadAudioTriggered();
     void onUrlToClipboardTriggered();
 
+    void onStartDownloadTriggered();
+    void onStopDownloadTriggered();
+    void onClearAllDownloadsClicked();
+
     void logNavigation()
     {
         m_navLog->record(m_id);
@@ -144,6 +148,7 @@ private:
     QQuickItem *m_friendsView = nullptr;
     QQuickItem *m_groupsView = nullptr;
     QQuickItem *m_audiosView = nullptr;
+    QQuickItem *m_downloadsView = nullptr;
     QQuickItem *m_playbackControl = nullptr;
     QObject *m_player = nullptr;
 

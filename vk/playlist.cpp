@@ -9,6 +9,10 @@ void Playlist::onModelRowsInserted(const QModelIndex &/*parent*/, int /*first*/,
 
 void Playlist::onModelRowsRemoved(const QModelIndex &/*parent*/, int /*first*/, int /*last*/)
 {
+    //If current pos was removed from list then invalidate and previous.
+    if (!m_pos.isValid())
+        m_prevPos = m_pos;
+
     invalidate();
 }
 
@@ -91,4 +95,7 @@ void Playlist::updatePositions(const QModelIndex &from)
         m_next = tmp;
         emit nextChanged();
     }
+
+    if (!m_pos.isValid() && m_prevPos.isValid())
+        updatePositions(QModelIndex(m_prevPos));
 }

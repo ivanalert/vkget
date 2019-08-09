@@ -64,6 +64,15 @@ MainWindow::MainWindow(QObject *parent)
     connect(action, SIGNAL(triggered()), SLOT(onDownloadAudioTriggered()));
     action = m_root->findChild<QObject*>(QStringLiteral("urlToClipboard"));
     connect(action, SIGNAL(triggered()), SLOT(onUrlToClipboardTriggered()));
+    action = m_root->findChild<QObject*>(QStringLiteral("startDownload"));
+    connect(action, SIGNAL(triggered()), SLOT(onStartDownloadTriggered()));
+    action = m_root->findChild<QObject*>(QStringLiteral("stopDownload"));
+    connect(action, SIGNAL(triggered()), SLOT(onStopDownloadTriggered()));
+    action = m_root->findChild<QObject*>(QStringLiteral("stopAllDownloads"));
+    connect(action, SIGNAL(clicked()), m_downloadManager, SLOT(stop()));
+    action = m_root->findChild<QObject*>(QStringLiteral("clearAllDownloads"));
+    connect(action, SIGNAL(clicked()), m_downloadManager, SLOT(stop()));
+    connect(action, SIGNAL(clicked()), sourceModel<VKItemModel>(m_downloads), SLOT(clear()));
 
     m_navigation = m_root->findChild<QObject*>(QStringLiteral("navigation"));
 
@@ -76,6 +85,8 @@ MainWindow::MainWindow(QObject *parent)
     m_playbackControl = m_root->findChild<QQuickItem*>(QStringLiteral("playbackControl"));
     m_player = m_root->findChild<QObject*>(QStringLiteral("audioPlayer"));
     connect(m_playlist, &Playlist::currentChanged, this, &MainWindow::onPlaylistCurrentChaged);
+
+    m_downloadsView = m_root->findChild<QQuickItem*>(QStringLiteral("downloadsView"));
 
     //Load settings. Temporary, to prevent login every time app launches.
     QSettings settings;
@@ -118,6 +129,7 @@ MainWindow::MainWindow(QObject *parent)
                 settings.value(QStringLiteral("path"),
                                QStandardPaths::writableLocation(
                                    QStandardPaths::DownloadLocation)).toString());
+    m_downloadManager->setOverwrite(settings.value(QStringLiteral("overwrite"), false).toBool());
     settings.endGroup();
 }
 
@@ -153,6 +165,7 @@ MainWindow::~MainWindow()
     settings.endGroup();
     settings.beginGroup(QStringLiteral("downloads"));
     settings.setValue(QStringLiteral("path"), m_downloadManager->path());
+    settings.setValue(QStringLiteral("overwrite"), m_downloadManager->overwrite());
     settings.endGroup();
 }
 
@@ -214,7 +227,7 @@ void MainWindow::onUsersGetFinished()
             m_root->setProperty("enabled", true);
 
             const auto user = val.toArray().at(0).toObject();
-            QString name = user.value("first_name").toString()
+            const QString name = user.value("first_name").toString()
                     % " " % user.value("last_name").toString();
             m_navigation->setProperty("userName", name);
             m_navigation->setProperty("userAvatar", user.value("photo_200").toString());
@@ -354,7 +367,7 @@ void MainWindow::onDownloadAudioTriggered()
     {
     case VKItem::ReadyStatus:
         auto download = static_cast<VKItem*>(item->clone());
-        download->setText(download->text() % ".mp3");
+        download->setText(Utilities::removeForbiddenFileNameCharacters(download->text()) % ".mp3");
         download->setDownloadProgress(0);
         model->appendRow(download);
         model->fetchMore(QModelIndex());
@@ -376,6 +389,26 @@ void MainWindow::onUrlToClipboardTriggered()
         requestAudioSource(i);
         break;
     }
+}
+
+void MainWindow::onStartDownloadTriggered()
+{
+    const auto i = m_downloadsView->property("currentIndex").toInt();
+    const auto index = m_downloads->mapToSource(m_downloads->index(i, 0));
+    m_downloadManager->start(index);
+}
+
+void MainWindow::onStopDownloadTriggered()
+{
+    const auto i = m_downloadsView->property("currentIndex").toInt();
+    const auto index = m_downloads->mapToSource(m_downloads->index(i, 0));
+    m_downloadManager->stop(index);
+}
+
+void MainWindow::onClearAllDownloadsClicked()
+{
+    m_downloadManager->stop();
+    m_downloads->sourceModel();
 }
 
 void MainWindow::requestAudioSource(int i)
@@ -495,7 +528,8 @@ void MainWindow::onDecodeAudioSectionFinished(QJsonArray list, const VKResponse:
                 const auto index = model->indexFromItem(item);
                 QVector<int> roles{VKItemModel::SourceRole, VKItemModel::SourceStatusRole};
                 model->dataChanged(index, index, roles);
-                if (m_audios->mapFromSource(index) == m_playlist->currentIndex())
+                if (m_playlist->currentIndex().isValid()
+                        && m_audios->mapFromSource(index) == m_playlist->currentIndex())
                 {
                     m_player->setProperty("source", item->source());
                     m_playbackControl->setProperty("title", item->text());

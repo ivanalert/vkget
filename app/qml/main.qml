@@ -14,6 +14,15 @@ ApplicationWindow {
     height: 600
     title: "VKGet"
 
+    Shortcut {
+        autoRepeat: false
+        sequence: StandardKey.Find
+        onActivated: {
+            filter.forceActiveFocus()
+            filter.selectAll()
+        }
+    }
+
     menuBar: ToolBar {
         id: toolBar
 
@@ -189,11 +198,6 @@ ApplicationWindow {
         anchors.fill: parent
         KeyNavigation.tab: playbackControl.backwardButton
 
-        Keys.onPressed: {
-            if (event.key === Qt.Key_F && (event.modifiers & Qt.ControlModifier))
-                filter.forceActiveFocus()
-        }
-
         StackLayout {
             id: rootStack
             objectName: "rootStack"
@@ -260,18 +264,42 @@ ApplicationWindow {
                 onVisibleChanged: { focus = visible }
                 model: downloads
 
-                header: Text {
+                header: RowLayout {
                     width: contentItem.width
-                    font.bold: true
-                    font.pixelSize: 20
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                    text: qsTr("Downloads")
+
+                    Row {
+                        Layout.fillHeight: true
+                        Layout.alignment: Qt.AlignCenter
+                        spacing: 10
+
+                        Text {
+                            font.bold: true
+                            font.pixelSize: 20
+                            anchors.top: parent.top
+                            anchors.bottom: parent.bottom
+                            verticalAlignment: Text.AlignVCenter
+                            text: qsTr("Downloads")
+                        }
+
+                        Button {
+                            id: stopAllDownloads
+                            objectName: "stopAllDownloads"
+                            text: qsTr("Stop all")
+                            enabled: downloadManager.downloadCount
+                        }
+
+                        Button {
+                            id: clearAllDownloads
+                            objectName: "clearAllDownloads"
+                            text: qsTr("Clear all")
+                        }
+                    }
                 }
             }
 
             Column {
                 topPadding: 10
+                spacing: 10
 
                 RowLayout {
                     anchors.left: parent.left
@@ -306,12 +334,24 @@ ApplicationWindow {
                         title: qsTr("Choose directory")
                         selectFolder: true
                         //Add scheme.
-                        folder: "file://" + downloadManager.path;
+                        folder: { "file://" + downloadManager.path; }
 
                         onAccepted: {
                             //Remove scheme.
                             downloadManager.path = fileUrl.toString().slice(7);
                         }
+                    }
+                }
+
+                RowLayout {
+                    anchors.leftMargin: 10
+                    anchors.rightMargin: 10
+                    spacing: 10
+
+                    CheckBox {
+                        text: qsTr("Overwite existing files")
+                        checked: downloadManager.overwrite
+                        onToggled: { downloadManager.overwrite = checked }
                     }
                 }
             }

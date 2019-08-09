@@ -60,10 +60,13 @@ private:
     QModelIndex m_index;
 };
 
+//Need to send it to worker thread for async i/o.
 class DownloadManager : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(QString path READ path WRITE setPath NOTIFY pathChanged)
+    Q_PROPERTY(bool overwrite READ overwrite WRITE setOverwrite NOTIFY overwriteChanged)
+    Q_PROPERTY(int downloadCount READ downloadCount NOTIFY downloadCountChanged)
 
 public:
     explicit DownloadManager(QObject *parent = nullptr)
@@ -77,19 +80,6 @@ public:
     {
 
     }
-
-//    explicit DownloadManager(QAbstractItemModel *model, QObject *parent = nullptr)
-//        : QObject(parent), m_model(model), m_netManager(new QNetworkAccessManager(this))
-//    {
-
-//    }
-
-//    DownloadManager(QAbstractItemModel *model, QNetworkAccessManager *netManager,
-//                    QObject *parent = nullptr)
-//        : QObject(parent), m_model(model), m_netManager(netManager)
-//    {
-
-//    }
 
     ~DownloadManager() override
     {
@@ -116,8 +106,29 @@ public:
         return m_path;
     }
 
+    void setOverwrite(bool value)
+    {
+        if (m_overwrite != value)
+        {
+            m_overwrite = value;
+            emit overwriteChanged();
+        }
+    }
+
+    bool overwrite() const noexcept
+    {
+        return m_overwrite;
+    }
+
+    int downloadCount() const
+    {
+        return m_downloads.size();
+    }
+
 signals:
     void pathChanged();
+    void overwriteChanged();
+    void downloadCountChanged();
     void downloadFinished(const QModelIndex &index);
     void started(QPrivateSignal);
     void stopped(QPrivateSignal);
@@ -125,7 +136,7 @@ signals:
 public slots:
     void start(const QModelIndex &index)
     {
-        if (index.isValid())
+        if (index.isValid() && !m_downloads.contains(index))
             startDownload(index);
     }
 
@@ -135,7 +146,11 @@ public slots:
         {
             if (m_model->data(index, VKItemModel::SourceStatusRole).toInt()
                     == VKItem::DownloadingStatus)
-                m_downloads.value(index)->abort();
+            {
+                auto download = m_downloads.value(index, nullptr);
+                if (download)
+                    download->abort();
+            }
         }
     }
 
@@ -181,6 +196,7 @@ private:
     QNetworkAccessManager *m_netManager;
     QString m_path;
     QMap<QModelIndex, DownloadItem*> m_downloads;
+    bool m_overwrite = false;
 };
 
 #endif // DOWNLOADMANAGER_H
