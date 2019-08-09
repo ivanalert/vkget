@@ -334,11 +334,15 @@ ApplicationWindow {
                         title: qsTr("Choose directory")
                         selectFolder: true
                         //Add scheme.
-                        folder: { "file://" + downloadManager.path; }
+                        folder: { "file:" + downloadManager.path }
 
                         onAccepted: {
                             //Remove scheme.
-                            downloadManager.path = fileUrl.toString().slice(7);
+                            var str = fileUrl.toString().slice(7)
+                            //Check for windows path.
+                            if (str.charAt(2) === ':')
+                                str = str.slice(1)
+                            downloadManager.path = str
                         }
                     }
                 }
