@@ -2,7 +2,6 @@
 #define VKITEMMODEL_H
 
 #include "basicitemmodel.h"
-#include "vkresponse.h"
 
 class VKItemModel : public BasicItemModel
 {
@@ -19,7 +18,8 @@ public:
         SourceStatusRole,
         CoverRole,
         ThumbnailRole,
-        DownloadProgressRole
+        DownloadProgressRole,
+        ErrorRole
     };
 
     explicit VKItemModel(QObject *parent = nullptr)
@@ -49,10 +49,17 @@ public:
         names[CoverRole] = "cover";
         names[ThumbnailRole] = "thumbnail";
         names[DownloadProgressRole] = "downloadProgress";
+        names[ErrorRole] = "error";
         return names;
     }
 
-    VKResponse::Section audioReloadSection(const QModelIndex &start);
+    using Range = QPair<QModelIndex, QModelIndex>;
+    struct Section
+    {
+        QStringList ids;
+        QVector<Range> ranges;
+    };
+    static Section audioReloadSection(const QModelIndex &from);
 };
 
 #endif // VKITEMMODEL_H

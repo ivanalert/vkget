@@ -37,6 +37,8 @@ public:
     QVariant data(const QModelIndex &index, int role) const override;
     bool setData(const QModelIndex &index, const QVariant &value, int role) override;
     bool removeData(const QModelIndex &index, int role);
+    void setData(const QModelIndex &topLeft, const QModelIndex &bottomRight, const QVariant &value,
+                 int role);
 
     QHash<int, QByteArray> roleNames() const override
     {
@@ -104,6 +106,12 @@ public:
 
     bool insertRows(int row, int count, const QModelIndex &parent = QModelIndex()) override;
     bool removeRows(int row, int count, const QModelIndex &parent = QModelIndex()) override;
+
+    void appendRow(const QList<BasicItem*> &items, const QModelIndex &parent = QModelIndex())
+    {
+        BasicItem *parentItem = getItem(parent);
+        parentItem->appendRow(items);
+    }
 
     void appendRow(BasicItem *item, const QModelIndex &parent = QModelIndex())
     {

@@ -1,8 +1,8 @@
 #include "mainwindow.h"
 #include "vkontakte.h"
 #include "vklogindialogqml.h"
-#include "vkitemmodel.h"
 #include "vkitem.h"
+#include "vkresponse.h"
 #include "threadsafenode.h"
 #include "playlist.h"
 #include "downloadmanager.h"
@@ -27,14 +27,17 @@
 MainWindow::MainWindow(QObject *parent)
     : QObject(parent), m_engine(new QQmlEngine(this)), m_friends(new QSortFilterProxyModel(this)),
       m_groups(new QSortFilterProxyModel(this)), m_audios(new QSortFilterProxyModel(this)),
-      m_playlist(new Playlist(m_audios, this)), m_downloads(new QSortFilterProxyModel(this)),
-      m_downloadManager(new DownloadManager(this)), m_navLog(new NavigationLog(this))
+      m_downloads(new QSortFilterProxyModel(this)), m_navLog(new NavigationLog(this))
 {
     m_friends->setSourceModel(new VKItemModel(new ThreadsafeNode, this));
     m_groups->setSourceModel(new VKItemModel(new ThreadsafeNode, this));
     m_audios->setSourceModel(new VKItemModel(new ThreadsafeNode, this));
     m_downloads->setSourceModel(new VKItemModel(this));
-    m_downloadManager->setModel(m_downloads->sourceModel());
+
+    m_playlist = new Playlist(m_audios, this);
+    m_downloadManager = new DownloadManager(m_downloads->sourceModel(), this);
+    connect(m_downloadManager, &DownloadManager::urlMissing, this,
+            &MainWindow::requestAudioSource);
 
     m_engine->rootContext()->setContextProperty("friends", m_friends);
     m_engine->rootContext()->setContextProperty("groups", m_groups);
@@ -73,6 +76,8 @@ MainWindow::MainWindow(QObject *parent)
     action = m_root->findChild<QObject*>(QStringLiteral("clearAllDownloads"));
     connect(action, SIGNAL(clicked()), m_downloadManager, SLOT(stop()));
     connect(action, SIGNAL(clicked()), sourceModel<VKItemModel>(m_downloads), SLOT(clear()));
+    action = m_root->findChild<QObject*>(QStringLiteral("downloadAllAudio"));
+    connect(action, SIGNAL(triggered()), SLOT(onDownloadAllAudioTriggered()));
 
     m_navigation = m_root->findChild<QObject*>(QStringLiteral("navigation"));
 
@@ -135,6 +140,8 @@ MainWindow::MainWindow(QObject *parent)
 
 MainWindow::~MainWindow()
 {
+    abortTasks();
+
     //Save settings. Temporary, to prevent login every time app launches.
     QSettings settings;
     settings.beginGroup(QStringLiteral("vk"));
@@ -358,6 +365,49 @@ void MainWindow::onGroupsViewItemRequested()
     //usersGet(id);
 }
 
+BasicItem *MainWindow::createDownloadItem(BasicItem *source)
+{
+    auto download = static_cast<VKItem*>(source->clone());
+    auto fileName = Utilities::removeForbiddenFileNameCharacters(download->text());
+    if (fileName.size() < 4)
+        fileName += Utilities::randomString(30);
+    else
+    {
+        QByteArray bytes = fileName.toUtf8();
+        if (bytes.size() > 246)
+        {
+            //9 bytes for .mp3 and .part and 2 bytes for unicode QString UTF-16.
+            bytes.truncate(244);
+            fileName = bytes;
+        }
+    }
+
+    download->setText(fileName % ".mp3");
+    download->setDownloadProgress(0);
+    download->setError(QString());
+
+    return download;
+}
+
+void MainWindow::onDownloadAllAudioTriggered()
+{
+    auto model = sourceModel<VKItemModel>(m_downloads);
+    auto pos = m_audios->index(0, 0);
+    while (pos.isValid())
+    {
+        auto item = sourceItem<VKItem>(m_audios, pos);
+        auto download = MainWindow::createDownloadItem(item);
+        model->appendRow(download);
+        pos = pos.siblingAtRow(pos.row() + 1);
+    }
+
+    pos = QModelIndex();
+    while (model->canFetchMore(pos))
+        model->fetchMore(pos);
+
+    m_downloadManager->start();
+}
+
 void MainWindow::onDownloadAudioTriggered()
 {
     auto model = sourceModel<VKItemModel>(m_downloads);
@@ -366,9 +416,7 @@ void MainWindow::onDownloadAudioTriggered()
     switch (item->sourceStatus())
     {
     case VKItem::ReadyStatus:
-        auto download = static_cast<VKItem*>(item->clone());
-        download->setText(Utilities::removeForbiddenFileNameCharacters(download->text()) % ".mp3");
-        download->setDownloadProgress(0);
+        auto download = MainWindow::createDownloadItem(item);
         model->appendRow(download);
         model->fetchMore(QModelIndex());
         m_downloadManager->start(model->lastIndex(0));
@@ -386,7 +434,7 @@ void MainWindow::onUrlToClipboardTriggered()
         QGuiApplication::clipboard()->setText(item->source().toString());
         break;
     case VKItem::NoStatus:
-        requestAudioSource(i);
+        requestAudioSource(item->model()->indexFromItem(item));
         break;
     }
 }
@@ -411,25 +459,34 @@ void MainWindow::onClearAllDownloadsClicked()
     m_downloads->sourceModel();
 }
 
-void MainWindow::requestAudioSource(int i)
+void MainWindow::requestAudioSource(const QModelIndex &index)
 {
-    //Threadsafe if only fill model.
-    auto model = sourceModel<VKItemModel>(m_audios);
-    const auto section = model->audioReloadSection(m_audios->mapToSource(m_audios->index(i, 0)));
-    if (!section.first.empty())
+    const auto section = VKItemModel::audioReloadSection(index);
+    if (!section.ids.empty())
     {
         QUrlQuery query;
         query.addQueryItem(QStringLiteral("act"), QStringLiteral("reload_audio"));
         query.addQueryItem(QStringLiteral("al"), QStringLiteral("1"));
-        query.addQueryItem(QStringLiteral("ids"), section.first.join(','));
+        query.addQueryItem(QStringLiteral("ids"), section.ids.join(','));
 
-        auto res = m_vk->request(QStringLiteral("al_audio.php"), query);
-        connect(res, &QNetworkReply::finished,
-                [this, res, section]
+        auto rep = m_vk->request(QStringLiteral("al_audio.php"), query);
+        connect(rep, &QNetworkReply::finished,
+                [this, rep, section]
         {
-            onReloadSectionFinished(res, section);
+            onReloadSectionFinished(rep, section);
         });
-        connect(this, &MainWindow::aborted, res, &QNetworkReply::abort);
+        connect(this, &MainWindow::aborted, rep, &QNetworkReply::abort);
+
+        auto model = const_cast<QAbstractItemModel*>(index.model());
+        for (const auto &range : section.ranges)
+        {
+            auto pos = range.first;
+            while (pos.isValid() && pos.row() <= range.second.row())
+            {
+                model->setData(pos, VKItem::LoadingStatus, VKItemModel::SourceStatusRole);
+                pos = pos.siblingAtRow(pos.row() + 1);
+            }
+        }
     }
 }
 
@@ -452,21 +509,21 @@ void MainWindow::onPlaylistCurrentChaged()
             }
             break;
         case VKItem::NoStatus:
-            requestAudioSource(index.row());
+            requestAudioSource(item->model()->indexFromItem(item));
             break;
         }
     }
 }
 
-void MainWindow::onReloadSectionFinished(QNetworkReply *reply, const VKResponse::Section &section)
+void MainWindow::onReloadSectionFinished(QNetworkReply *reply, const VKItemModel::Section &section)
 {
-    QScopedPointer<QNetworkReply, QScopedPointerDeleteLater> res(reply);
-    if (res->error() == QNetworkReply::NoError)
+    QScopedPointer<QNetworkReply, QScopedPointerDeleteLater> rep(reply);
+    if (rep->error() == QNetworkReply::NoError)
     {
-        auto data = res->readAll();
+        auto data = rep->readAll();
         const auto doc = VKResponse::parseAudioReloadSection(
-                    data, res->header(QNetworkRequest::ContentTypeHeader).toString());
-        res.reset();
+                    data, rep->header(QNetworkRequest::ContentTypeHeader).toString());
+        rep.reset();
 
         auto list = doc.array();
         const auto pList = new QJsonArray(list);
@@ -494,42 +551,44 @@ void MainWindow::onReloadSectionFinished(QNetworkReply *reply, const VKResponse:
     }
 }
 
-void MainWindow::onDecodeAudioSectionFinished(QJsonArray list, const VKResponse::Section &section)
+void MainWindow::onDecodeAudioSectionFinished(QJsonArray list, const VKItemModel::Section &section)
 {
     //Ensure size of list like in section.
-    if (list.size() < section.first.size())
+    if (list.size() < section.ids.size())
     {
-        for (int i = 0, size = section.first.size(); i < size; ++i)
+        for (int i = 0, size = section.ids.size(); i < size; ++i)
         {
-            const auto id = section.first.at(i).split('_').at(1).toInt();
+            const auto id = section.ids.at(i).split('_').at(1).toInt();
             if (list.at(i).toArray().at(0).toInt() != id)
                 list.insert(i, QJsonValue());
         }
     }
 
-    int j = 0;
-    auto model = sourceModel<VKItemModel>(m_audios);
-    for (const auto &range : section.second)
+    int i = 0;
+    for (const auto &range : section.ranges)
     {
-        for (int i = range.first; i <= range.second; ++i, ++j)
+        auto pos = range.first;
+        auto model = static_cast<VKItemModel*>(const_cast<QAbstractItemModel*>(pos.model()));
+        while (pos.isValid() && pos.row() <= range.second.row())
         {
-            const auto array = list.at(j).toArray();
+            const auto array = list.at(i).toArray();
             if (array.at(2).toString().isEmpty())
             {
                 //Threadsafe if only fill model.
-                model->itemFromRow<VKItem>(i)->setSourceStatus(VKItem::UnavailableStatus);
+                model->itemFromIndex<VKItem>(pos)->setSourceStatus(VKItem::UnavailableStatus);
             }
             else
             {
                 //Threadsafe if only fill model.
-                auto item = model->itemFromRow<VKItem>(i);
+                auto item = model->itemFromIndex<VKItem>(pos);
                 item->setSource(array.at(2).toString(), false);
                 item->setSourceStatus(VKItem::ReadyStatus, false);
-                const auto index = model->indexFromItem(item);
                 QVector<int> roles{VKItemModel::SourceRole, VKItemModel::SourceStatusRole};
-                model->dataChanged(index, index, roles);
-                if (m_playlist->currentIndex().isValid()
-                        && m_audios->mapFromSource(index) == m_playlist->currentIndex())
+                model->dataChanged(pos, pos, roles);
+                if (model == m_downloads->sourceModel() && m_downloadManager->isPendingIndex(pos))
+                    m_downloadManager->start(pos);
+                else if (model == m_audios->sourceModel() && m_playlist->currentIndex().isValid()
+                         && m_audios->mapFromSource(pos) == m_playlist->currentIndex())
                 {
                     m_player->setProperty("source", item->source());
                     m_playbackControl->setProperty("title", item->text());
@@ -538,6 +597,9 @@ void MainWindow::onDecodeAudioSectionFinished(QJsonArray list, const VKResponse:
                     QMetaObject::invokeMethod(m_player, "play");
                 }
             }
+
+            ++i;
+            pos = pos.siblingAtRow(pos.row() + 1);
         }
 
         //const auto topLeft = model->index(range.first, 0);

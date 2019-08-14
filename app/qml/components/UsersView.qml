@@ -38,6 +38,19 @@ GridView {
         }
     }
 
+    Keys.onPressed: {
+        switch (event.key) {
+        case Qt.Key_Home:
+            positionViewAtBeginning()
+            currentIndex = 0
+            break
+        case Qt.Key_End:
+            positionViewAtEnd()
+            currentIndex = count - 1
+            break
+        }
+    }
+
     delegate: Item {
         id: cell
         width: 120

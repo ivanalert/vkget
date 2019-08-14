@@ -4,6 +4,7 @@
 #include "vkresponse.h"
 #include "playlist.h"
 #include "vkitemmodel.h"
+#include "downloadmanager.h"
 
 class TestVK: public QObject
 {

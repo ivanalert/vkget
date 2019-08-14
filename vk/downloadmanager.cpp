@@ -5,40 +5,129 @@
 
 void DownloadManager::startDownload(const QModelIndex &index)
 {
-    if (m_model->data(index, VKItemModel::SourceStatusRole).toInt() == VKItem::ReadyStatus)
+    const auto status = m_model->data(index, VKItemModel::SourceStatusRole).toInt();
+    if (status == VKItem::ReadyStatus)
     {
         QDir dir(m_path);
         if (dir.exists())
         {
-            const QString name = dir.absoluteFilePath(m_model->data(index).toString()) % ".part";
-            if (!m_overwrite && QFile::exists(name))
+            auto file = new QFile(dir.absoluteFilePath(m_model->data(index).toString()), this);
+            if (file->exists())
             {
-                m_model->setData(index, 1, VKItemModel::DownloadProgressRole);
+                if (!m_overwrite)
+                {
+                    m_model->setData(index, 1, VKItemModel::DownloadProgressRole);
+                    m_model->setData(index, QObject::tr("File already exists"),
+                                     VKItemModel::ErrorRole);
+                    delete file;
+                    return;
+                }
+                else
+                    file->rename(file->fileName() % ".part");
+            }
+            else
+                file->setFileName(file->fileName() % ".part");
+
+            if (file->open(QIODevice::WriteOnly))
+            {
+                const auto url = m_model->data(index, VKItemModel::SourceRole).toUrl();
+                auto res = m_netManager->get(QNetworkRequest(url));
+                auto download = new DownloadItem(file, res, index, this);
+                connect(download, &DownloadItem::readyRead, this,
+                        &DownloadManager::onDownloadReadyRead);
+                connect(download, &DownloadItem::downloadProgress, this,
+                        &DownloadManager::onDownloadProgressChanged);
+                connect(download, &DownloadItem::finished, this,
+                        &DownloadManager::onDownloadFinished);
+
+                m_downloads.insert(index, download);
+                emit downloadCountChanged();
+                m_model->setData(index, VKItem::DownloadingStatus,
+                                 VKItemModel::SourceStatusRole);
             }
             else
             {
-                auto file = new QFile(name);
-                if (file->open(QIODevice::WriteOnly))
-                {
-                    const auto url = m_model->data(index, VKItemModel::SourceRole).toUrl();
-                    auto res = m_netManager->get(QNetworkRequest(url));
-                    auto download = new DownloadItem(file, res, index, this);
-                    connect(download, &DownloadItem::readyRead, this,
-                            &DownloadManager::onDownloadReadyRead);
-                    connect(download, &DownloadItem::downloadProgress, this,
-                            &DownloadManager::onDownloadProgressChanged);
-                    connect(download, &DownloadItem::finished, this,
-                            &DownloadManager::onDownloadFinished);
-                    connect(this, &DownloadManager::stopped, download, &DownloadItem::abort);
-
-                    m_downloads.insert(index, download);
-                    emit downloadCountChanged();
-                    m_model->setData(index, VKItem::DownloadingStatus,
-                                     VKItemModel::SourceStatusRole);
-                }
-                else
-                    delete file;
+                m_model->setData(index, file->errorString(), VKItemModel::ErrorRole);
+                delete file;
             }
+        }
+    }
+    else if (status != VKItem::UnavailableStatus)
+    {
+        insertPendingIndex(index);
+        if (status == VKItem::NoStatus)
+            emit urlMissing(index);
+    }
+}
+
+void DownloadManager::start(const QModelIndex &index)
+{
+    if (index.isValid() && !m_downloads.contains(index))
+    {
+        if (m_downloads.size() < m_downloadLimit)
+        {
+            const auto pos = compareTakePendingIndex(index);
+            if (pos.isValid())
+                startDownload(pos);
+            else
+                startDownload(index);
+        }
+        else
+            insertPendingIndex(index);
+    }
+}
+
+void DownloadManager::startFrom(const QModelIndex &index)
+{
+    auto pos = index;
+    while (pos.isValid())
+    {
+        if (!m_downloads.contains(pos))
+        {
+            if (m_downloads.size() < m_downloadLimit)
+                startDownload(pos);
+            else
+                insertPendingIndex(pos);
+        }
+
+        pos = pos.siblingAtRow(pos.row() + 1);
+    }
+}
+
+void DownloadManager::insertPendingIndex(const QModelIndex &index)
+{
+    auto it = std::lower_bound(m_pendingIndexes.begin(), m_pendingIndexes.end(), index);
+    if (it == m_pendingIndexes.end())
+    {
+        if (!m_pendingIndexes.empty() && m_pendingIndexes.last().row() + 1 == index.row())
+            m_pendingIndexes.last() = index;
+        else
+            m_pendingIndexes.insert(index, index);
+    }
+}
+
+void DownloadManager::removePendingIndex(const QModelIndex &index)
+{
+    auto it = std::lower_bound(m_pendingIndexes.begin(), m_pendingIndexes.end(), index);
+    if (it != m_pendingIndexes.end() && index.row() <= it.value().row())
+    {
+        const auto start = it.key();
+        const auto finish = it.value();
+        m_pendingIndexes.erase(it);
+
+        if (index.row() > start.row())
+        {
+            auto pos = index.siblingAtRow(index.row() - 1);
+            m_pendingIndexes.insert(start, pos);
+            pos = index.siblingAtRow(index.row() + 1);
+            if (pos.isValid())
+                m_pendingIndexes.insert(pos, finish);
+        }
+        else
+        {
+            auto pos = index.siblingAtRow(index.row() + 1);
+            if (pos.isValid() && pos.row() <= finish.row())
+                m_pendingIndexes.insert(pos, finish);
         }
     }
 }
@@ -54,7 +143,7 @@ void DownloadManager::onDownloadReadyRead()
 void DownloadManager::onDownloadProgressChanged(qint64 bytesReceived, qint64 bytesTotal)
 {
     if (bytesTotal > 0)
-    {   
+    {
         double total = bytesTotal;
         double received = bytesReceived;
         auto download = static_cast<DownloadItem*>(sender());
@@ -73,20 +162,22 @@ void DownloadManager::onDownloadFinished()
     m_downloads.remove(index);
     emit downloadCountChanged();
 
+    m_model->setData(index, VKItem::ReadyStatus, VKItemModel::SourceStatusRole);
     if (res->error() == QNetworkReply::NoError)
     {
         QFileInfo info(*file);
         auto dir = info.dir();
         file->rename(dir.absoluteFilePath(info.completeBaseName()));
-        file->close();
-        m_model->setData(index, VKItem::ReadyStatus, VKItemModel::SourceStatusRole);
     }
     else
     {
         file->remove();
         m_model->setData(index, 0, VKItemModel::DownloadProgressRole);
-        m_model->setData(index, VKItem::ReadyStatus, VKItemModel::SourceStatusRole);
+        m_model->setData(index, res->errorString(), VKItemModel::ErrorRole);
     }
 
     delete download;
+
+    if (!m_pendingIndexes.empty())
+        startFrom(takePendingIndex());
 }

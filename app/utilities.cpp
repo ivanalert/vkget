@@ -44,7 +44,7 @@ QString Utilities::normalizeHtml(QString html)
 
 QString Utilities::randomString(int maxChars)
 {
-    QString chars("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890");
+    const QString chars("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890");
     std::random_device rng;
     std::uniform_int_distribution<> index(0, chars.size() - 1);
     QString result;

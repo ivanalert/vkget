@@ -2,11 +2,6 @@
 #include "vkitem.h"
 #include "vkitemmodel.h"
 
-void Playlist::onModelRowsInserted(const QModelIndex &/*parent*/, int /*first*/, int /*last*/)
-{
-    invalidate();
-}
-
 void Playlist::onModelRowsRemoved(const QModelIndex &/*parent*/, int /*first*/, int /*last*/)
 {
     //If current pos was removed from list then invalidate and previous.

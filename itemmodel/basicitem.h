@@ -296,14 +296,19 @@ public:
         insertRows(row, 1);
     }
 
+    void appendRow(const QList<BasicItem*> &items)
+    {
+        insertRows(childItemCount(), items, false);
+    }
+
     void appendRow(BasicItem *item)
     {
         insertRows(childItemCount(), QList<BasicItem*>{item}, false);
     }
 
-    void appendRow()
+    void appendRow(int count = 1)
     {
-        insertRows(childItemCount(), 1, nullptr, false);
+        insertRows(childItemCount(), count, nullptr, false);
     }
 
 protected:

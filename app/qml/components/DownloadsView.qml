@@ -60,9 +60,19 @@ ListView {
                         startDownload.enabled = true
                         stopDownload.enabled = false
                         break
-                    case 4:
-                        stopDownload.enabled = true
+                    case 1:
+                    case 2:
                         startDownload.enabled = false
+                        stopDownload.enabled = false
+                        break
+                    case 3:
+                        startDownload.enabled = true
+                        stopDownload.enabled = false
+                        break
+                    case 4:
+                        startDownload.enabled = false
+                        stopDownload.enabled = true
+                        break
                     }
                 }
 
@@ -95,7 +105,8 @@ ListView {
                 Label {
                     anchors.left: parent.left
                     anchors.right: parent.right
-                    text: "Here are will be error messages"
+                    text: { root.sourceStatusText(row.linkStatus) }
+                    elide: Text.ElideRight
                 }
             }
 

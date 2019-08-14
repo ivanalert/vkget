@@ -74,6 +74,25 @@ bool BasicItemModel::removeData(const QModelIndex &index, int role)
     return false;
 }
 
+void BasicItemModel::setData(const QModelIndex &topLeft, const QModelIndex &bottomRight,
+                             const QVariant &value, int role)
+{
+    if (topLeft.isValid() && bottomRight.isValid())
+    {
+        auto cursor = topLeft;
+        for (int i = topLeft.row(), rows = bottomRight.row(); i <= rows; ++i)
+        {
+            for (int j = topLeft.column(), columns = bottomRight.column(); j <= columns;)
+            {
+                setData(cursor, value, role);
+                cursor = cursor.siblingAtColumn(++j);
+            }
+
+            cursor = cursor.siblingAtRow(++i);
+        }
+    }
+}
+
 QVariant BasicItemModel::headerData(int section, Qt::Orientation orientation, int role) const
 {
     if (section >= 0)
@@ -150,7 +169,7 @@ QModelIndex BasicItemModel::index(int row, int column, const QModelIndex &parent
 bool BasicItemModel::insertRows(int row, int count, const QModelIndex &parent)
 {
     BasicItem *parentItem = getItem(parent);
-    if (row < 0 || row > parentItem->populatedChildItemCount())
+    if (row < 0 || row > parentItem->rowCount())
         return false;
 
     parentItem->insertRows(row, count, m_prototype);
@@ -160,7 +179,7 @@ bool BasicItemModel::insertRows(int row, int count, const QModelIndex &parent)
 bool BasicItemModel::removeRows(int row, int count, const QModelIndex &parent)
 {
     BasicItem *parentItem = getItem(parent);
-    if (row < 0 || row + count > parentItem->populatedChildItemCount())
+    if (row < 0 || row + count > parentItem->rowCount())
         return false;
 
     parentItem->removeRows(row, count);

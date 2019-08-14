@@ -3,53 +3,51 @@
 
 #include <QStringBuilder>
 
-VKResponse::Section VKItemModel::audioReloadSection(const QModelIndex &start)
+VKItemModel::Section VKItemModel::audioReloadSection(const QModelIndex &from)
 {
-    VKResponse::Section section;
-    QVector<VKResponse::Range> ranges;
+    Section section;
+    QVector<Range> ranges;
     bool in = false;
     int counter = 0;
 
-    auto tmp = start;
-    while (tmp.isValid() && counter < 10)
+    auto pos = from;
+    while (pos.isValid() && counter < 10)
     {
-        //Need to test.
-        int i = tmp.row();
-        if (data(tmp, SourceRole).toUrl().isEmpty()
-                && data(tmp, SourceStatusRole).toInt() != VKItem::UnavailableStatus)
+        const auto i = pos.row();
+        if (pos.data(SourceRole).toUrl().isEmpty()
+                && pos.data(SourceStatusRole).toInt() != VKItem::UnavailableStatus)
         {
-            setData(tmp, VKItem::LoadingStatus, SourceStatusRole);
-            const auto hashes = data(tmp, AudioHashRole).toStringList();
+            const auto hashes = pos.data(AudioHashRole).toStringList();
             if (hashes.empty())
             {
-                section.first.append(data(tmp, IdRole).toString()
-                                     % "_" % data(tmp, ContentIdRole).toString());
+                section.ids.append(pos.data(IdRole).toString()
+                                   % "_" % pos.data(ContentIdRole).toString());
             }
             else
             {
-                section.first.append(data(tmp, IdRole).toString()
-                                     % "_" % data(tmp, ContentIdRole).toString()
-                                     % "_" % hashes.at(2)
-                                     % "_" % hashes.at(5));
+                section.ids.append(pos.data(IdRole).toString()
+                                   % "_" % pos.data(ContentIdRole).toString()
+                                   % "_" % hashes.at(2)
+                                   % "_" % hashes.at(5));
             }
 
-            if (in && section.second.last().second + 1 == i)
-                section.second.last().second = i;
+            if (in && section.ranges.last().second.row() + 1 == i)
+                section.ranges.last().second = pos;
             else
             {
                 //const auto topLeft = index(section.second.last().first, 0);
                 //const auto bottomRight = index(section.second.last().second, 0);
                 //const QVector<int> roles{SourceStatusRole};
                 //emit dataChanged(topLeft, bottomRight, roles);
-                section.second.append(VKResponse::Range(i, i));
+                section.ranges.append(Range(pos, pos));
             }
 
             in = true;
-            if (section.first.size() == 10)
+            if (section.ids.size() == 10)
                 return section;
         }
 
-        tmp = tmp.siblingAtRow(i + 1);
+        pos = pos.siblingAtRow(i + 1);
         ++counter;
     }
 

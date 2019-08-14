@@ -1,9 +1,8 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
-#include "vkresponse.h"
 #include "navigationlog.h"
-#include "basicitemmodel.h"
+#include "vkitemmodel.h"
 
 #include <limits>
 #include <QObject>
@@ -64,6 +63,7 @@ private slots:
 
     void onFilterEdited();
 
+    void onDownloadAllAudioTriggered();
     void onDownloadAudioTriggered();
     void onUrlToClipboardTriggered();
 
@@ -95,9 +95,11 @@ private slots:
     void onPlaylistCurrentChaged();
 
     void onParseAudioSectionFinished();
-    void onReloadSectionFinished(QNetworkReply *reply, const VKResponse::Section &section);
+    void onReloadSectionFinished(QNetworkReply *reply, const VKItemModel::Section &section);
     void onDecodeAudioUrlsFinished();
-    void onDecodeAudioSectionFinished(QJsonArray list, const VKResponse::Section &section);
+    void onDecodeAudioSectionFinished(QJsonArray list, const VKItemModel::Section &section);
+
+    void requestAudioSource(const QModelIndex &index);
 
 private:
     template<typename T>
@@ -120,6 +122,7 @@ private:
     }
 
     static BasicItem* createUserItem(const QJsonValue &value, const QString &name);
+    static BasicItem* createDownloadItem(BasicItem *source);
 
     void fillFriends(const QJsonArray &array, const QAtomicInteger<char> &abort);
     void fillGroups(const QJsonArray &array, const QAtomicInteger<char> &abort);
@@ -137,7 +140,6 @@ private:
     void groupsGet(int id, int offset = 0);
     void audiosGet(int id, int offset = 0);
     void realoadSection(int index, int secIndex);
-    void requestAudioSource(int i);
 
     QQmlEngine *m_engine;
     bool loggedin = false;
@@ -156,9 +158,9 @@ private:
     QSortFilterProxyModel *m_friends;
     QSortFilterProxyModel *m_groups;
     QSortFilterProxyModel *m_audios;
-    Playlist *m_playlist;
     QSortFilterProxyModel *m_downloads;
-    DownloadManager *m_downloadManager;
+    Playlist *m_playlist = nullptr;
+    DownloadManager *m_downloadManager = nullptr;
 
     int m_id = std::numeric_limits<int>::max();
 

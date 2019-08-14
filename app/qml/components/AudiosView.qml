@@ -35,6 +35,19 @@ ListView {
         }
     }
 
+    Keys.onPressed: {
+        switch (event.key) {
+        case Qt.Key_Home:
+            positionViewAtBeginning()
+            currentIndex = 0
+            break
+        case Qt.Key_End:
+            positionViewAtEnd()
+            currentIndex = count - 1
+            break
+        }
+    }
+
     Connections {
         target: playbackControl.backwardButton
         onClicked: { audioPlaylist.moveBackward() }
@@ -161,18 +174,7 @@ ListView {
 
                 Label {
                     id: statusText
-                    text: {
-                        switch (row.linkStatus) {
-                        case 0:
-                            return qsTr("Ready")
-                        case 1:
-                            return qsTr("Loading...")
-                        case 2:
-                            return qsTr("Unavailable")
-                        default:
-                            return qsTr("Not processed")
-                        }
-                    }
+                    text: { root.sourceStatusText(row.linkStatus) }
                 }
             }
 

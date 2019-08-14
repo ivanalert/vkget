@@ -14,12 +14,84 @@ ApplicationWindow {
     height: 600
     title: "VKGet"
 
+    function sourceStatusText(status) {
+        switch (status)
+        {
+        case 0: //VKItem::ReadyStatus
+            return qsTr("Ready");
+        case 1: //VKItem::LoadingStatus
+            return qsTr("Loading...");
+        case 2: //VKItem::UnavailableStatus
+            return qsTr("Unavailable");
+        case 3: //VKItem::NoStatus
+            return qsTr("Not processed");
+        case 4: //VKItem::DownloadingStatus
+            return qsTr("Downloading...");
+        case 5: //VKItem::DownloadPausedStatus
+            return qsTr("Paused");
+        case 6: //VKItem::PendingStatus
+            return qsTr("Pending");
+        case 7: //VKItem::ErrorStatus
+            return qsTr("Error");
+        default:
+            return ""
+        }
+    }
+
     Shortcut {
         autoRepeat: false
         sequence: StandardKey.Find
         onActivated: {
             filter.forceActiveFocus()
             filter.selectAll()
+        }
+    }
+
+    Shortcut {
+        autoRepeat: false
+        sequence: "Ctrl+1"
+        onActivated: {
+            navigation.currentIndex = 0
+        }
+    }
+
+    Shortcut {
+        autoRepeat: false
+        sequence: "Ctrl+2"
+        onActivated: {
+            navigation.currentIndex = 1
+        }
+    }
+
+    Shortcut {
+        autoRepeat: false
+        sequence: "Ctrl+3"
+        onActivated: {
+            navigation.currentIndex = 2
+        }
+    }
+
+    Shortcut {
+        autoRepeat: false
+        sequence: "Ctrl+4"
+        onActivated: {
+            navigation.currentIndex = 3
+        }
+    }
+
+    Shortcut {
+        autoRepeat: false
+        sequence: "Ctrl+5"
+        onActivated: {
+            navigation.currentIndex = 4
+        }
+    }
+
+    Shortcut {
+        autoRepeat: false
+        sequence: "Ctrl+6"
+        onActivated: {
+            navigation.currentIndex = 5
         }
     }
 
@@ -216,7 +288,7 @@ ApplicationWindow {
                     font.bold: true
                     font.pixelSize: 20
                     horizontalAlignment: Text.AlignHCenter
-                    text: { qsTr("Friends ") + navigation.userName }
+                    text: { navigation.userName + " " + qsTr("Friends") }
                 }
             }
 
@@ -231,7 +303,7 @@ ApplicationWindow {
                     font.bold: true
                     font.pixelSize: 20
                     horizontalAlignment: Text.AlignHCenter
-                    text: { qsTr("Groups ") + navigation.userName }
+                    text: { navigation.userName + " " + qsTr("Groups") }
                 }
             }
 
@@ -241,13 +313,47 @@ ApplicationWindow {
                 onVisibleChanged: { focus = visible }
                 model: audios
 
-                header: Text {
+                Action {
+                    id: downloadAllAudio
+                    objectName: "downloadAllAudio"
+                }
+
+                header: RowLayout {
                     width: contentItem.width
-                    font.bold: true
-                    font.pixelSize: 20
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                    text: { qsTr("Audios ") + navigation.userName }
+
+                    Row {
+                        Layout.fillHeight: true
+                        Layout.alignment: Qt.AlignCenter
+                        spacing: 10
+
+                        Text {
+                            font.bold: true
+                            font.pixelSize: 20
+                            anchors.top: parent.top
+                            anchors.bottom: parent.bottom
+                            verticalAlignment: Text.AlignVCenter
+                            text: navigation.userName + " " + qsTr("Audios")
+                        }
+
+                        Button {
+                            text: qsTr("Download all")
+                            enabled: audiosView.count
+                            onClicked: {
+                                downloadAllAudioDialog.open();
+                            }
+                        }
+                    }
+                }
+
+                MessageDialog {
+                    id: downloadAllAudioDialog
+                    title: "VKGet" + " - " + qsTr("Download")
+                    text: qsTr("Download") + " " + audiosView.count + " " + qsTr("files")
+                    standardButtons: StandardButton.Ok | StandardButton.Cancel
+                    icon: StandardIcon.Question
+                    onAccepted: {
+                        downloadAllAudio.trigger()
+                    }
                 }
             }
 
@@ -292,6 +398,7 @@ ApplicationWindow {
                             id: clearAllDownloads
                             objectName: "clearAllDownloads"
                             text: qsTr("Clear all")
+                            enabled: downloadsView.count
                         }
                     }
                 }

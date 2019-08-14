@@ -16,7 +16,9 @@ public:
         UnavailableStatus,
         NoStatus,
         DownloadingStatus,
-        DownloadPausedStatus
+        DownloadPausedStatus,
+        PendingStatus,
+        ErrorStatus
     };
 
     VKItem(const int id, const QString &name, BasicItem *parent = nullptr)
@@ -134,6 +136,16 @@ public:
     double downloadProgress() const
     {
         return data(0, VKItemModel::DownloadProgressRole).toDouble();
+    }
+
+    void setError(const QString &value, bool notify = true)
+    {
+        setData(0, value, VKItemModel::ErrorRole, notify);
+    }
+
+    QString error() const
+    {
+        return data(0, VKItemModel::ErrorRole).toString();
     }
 
 protected:
