@@ -235,10 +235,10 @@ ApplicationWindow {
                 }
             }
 
-            Switch {
+            /*Switch {
                 text: "Search"
                 enabled: false
-            }
+            }*/
 
             ToolButton {
                 id: goToUserMenuButton

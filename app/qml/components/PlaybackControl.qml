@@ -11,6 +11,41 @@ RowLayout {
     property alias currentDuration: currentDuration.text
     property alias duration: duration.text
 
+    function millisecondsToString(msecs) {
+        var s = Math.floor(msecs / 1000)
+        var m = 0
+        var h = 0
+
+        if (s > 60)
+        {
+            m = Math.floor(s / 60)
+            s = Math.floor(s - m * 60)
+        }
+        if (m > 60)
+        {
+            h = Math.floor(m / 60)
+            m = Math.floor(m - h * 60)
+        }
+
+        var result = ""
+        if (h !== 0)
+        {
+            result += h < 10 ? "0" + parseInt(h) : parseInt(h)
+            result += ":"
+        }
+        if (m !== 0 || result.length > 0)
+        {
+            result += m < 10 ?  "0" + parseInt(m) : parseInt(m)
+            result += ":"
+        }
+        if (s !== 0 || result.length > 0)
+        {
+            result += s < 10 ? "0" + parseInt(s) : parseInt(s)
+        }
+
+        return result
+    }
+
     Button {
         id: previousButton
         icon.name: "media-skip-backward"
@@ -57,6 +92,18 @@ RowLayout {
 
             Label {
                 id: currentDuration
+                text: {
+                    var str = ""
+                    var charCount = duration.text.length
+                    if (charCount > 0) {
+                        str = millisecondsToString(seekSlider.value)
+                        if (str.length === 0)
+                            str = "00"
+                        while (str.length < charCount)
+                            str = "00:" + str
+                    }
+                    return str
+                }
             }
 
             Label {
@@ -69,6 +116,7 @@ RowLayout {
 
             Label {
                 id: duration
+                text: { millisecondsToString(audioPlayer.duration) }
             }
         }
 

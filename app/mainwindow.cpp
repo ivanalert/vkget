@@ -510,7 +510,6 @@ void MainWindow::onPlaylistCurrentChaged()
             if (m_player->property("source").toUrl() != item->source())
             {
                 m_playbackControl->setProperty("title", item->text());
-                m_playbackControl->setProperty("duration", item->metadata());
                 m_player->setProperty("source", item->source());
                 QMetaObject::invokeMethod(m_player, "stop");
                 QMetaObject::invokeMethod(m_player, "play");
@@ -599,7 +598,6 @@ void MainWindow::onDecodeAudioSectionFinished(QJsonArray list, const VKItemModel
                 {
                     m_player->setProperty("source", item->source());
                     m_playbackControl->setProperty("title", item->text());
-                    m_playbackControl->setProperty("duration", item->metadata());
                     QMetaObject::invokeMethod(m_player, "stop");
                     QMetaObject::invokeMethod(m_player, "play");
                 }
