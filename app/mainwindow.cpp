@@ -24,10 +24,15 @@
 #include <QSettings>
 #include <QDir>
 
+//Global id.
+int MainWindow::user_id;
+
 MainWindow::MainWindow(QObject *parent)
     : QObject(parent), m_engine(new QQmlEngine(this)), m_friends(new QSortFilterProxyModel(this)),
-      m_groups(new QSortFilterProxyModel(this)), m_audios(new QSortFilterProxyModel(this)),
-      m_downloads(new QSortFilterProxyModel(this)), m_navLog(new NavigationLog(this))
+      m_friendsTaskGroup(new TaskGroup(this)), m_groups(new QSortFilterProxyModel(this)),
+      m_groupsTaskGroup(new TaskGroup(this)), m_audios(new QSortFilterProxyModel(this)),
+      m_audiosTaskGroup(new TaskGroup(this)), m_downloads(new QSortFilterProxyModel(this)),
+      m_downloadsTaskGroup(new TaskGroup(this)), m_navLog(new NavigationLog(this))
 {
     m_friends->setSourceModel(new VKItemModel(new ThreadsafeNode, this));
     m_groups->setSourceModel(new VKItemModel(new ThreadsafeNode, this));
@@ -56,13 +61,15 @@ MainWindow::MainWindow(QObject *parent)
     auto action = m_root->findChild<QObject*>(QStringLiteral("loginAction"));
     connect(action, SIGNAL(triggered()), SLOT(onLoginTriggered()));
     action = m_root->findChild<QObject*>(QStringLiteral("refreshAction"));
-    connect(action, SIGNAL(triggered()), SLOT(usersGet()));
+    connect(action, SIGNAL(triggered()), SLOT(onRefreshActionTriggered()));
     action = m_root->findChild<QObject*>(QStringLiteral("previousAction"));
     connect(action, SIGNAL(triggered()), SLOT(onPreviousTriggered()));
     action = m_root->findChild<QObject*>(QStringLiteral("nextAction"));
     connect(action, SIGNAL(triggered()), SLOT(onNextTriggered()));
     action = m_root->findChild<QObject*>(QStringLiteral("homeAction"));
     connect(action, SIGNAL(triggered()), SLOT(onHomeTriggered()));
+    action = m_root->findChild<QObject*>(QStringLiteral("goToUserMenuButton"));
+    connect(action, SIGNAL(clicked()), SLOT(onGoToUserClicked()));
     action = m_root->findChild<QObject*>(QStringLiteral("downloadAudio"));
     connect(action, SIGNAL(triggered()), SLOT(onDownloadAudioTriggered()));
     action = m_root->findChild<QObject*>(QStringLiteral("urlToClipboard"));
@@ -100,6 +107,11 @@ MainWindow::MainWindow(QObject *parent)
                          settings.value(QStringLiteral("access_token")).toString(), this);
     if (m_vk->isValid())
     {
+        MainWindow::user_id = settings.value(QStringLiteral("user_id"),
+                                             std::numeric_limits<int>::max()).toInt();
+        m_id = settings.value(QStringLiteral("current_id"),
+                              std::numeric_limits<int>::max()).toInt();
+
         auto cookieJar = m_vk->networkAccessManager()->cookieJar();
         auto count = settings.beginReadArray(QStringLiteral("cookie"));
         for (int i = 0; i < count; ++i)
@@ -117,7 +129,7 @@ MainWindow::MainWindow(QObject *parent)
         }
         settings.endArray();
 
-        usersGet();
+        usersGet(m_id);
     }
     else
     {
@@ -140,15 +152,17 @@ MainWindow::MainWindow(QObject *parent)
 
 MainWindow::~MainWindow()
 {
-    abortTasks();
+    abortAllTasks();
 
     //Save settings. Temporary, to prevent login every time app launches.
     QSettings settings;
     settings.beginGroup(QStringLiteral("vk"));
     settings.setValue(QStringLiteral("api_version"), m_vk->apiVersion());
     settings.setValue(QStringLiteral("access_token"), m_vk->accessToken());
-    settings.beginWriteArray(QStringLiteral("cookie"));
+    settings.setValue(QStringLiteral("user_id"), MainWindow::user_id);
+    settings.setValue(QStringLiteral("current_id"), m_id);
 
+    settings.beginWriteArray(QStringLiteral("cookie"));
     int i = 0;
     auto cookieJar = m_vk->networkAccessManager()->cookieJar();
     QList<QNetworkCookie> cookies;
@@ -170,25 +184,22 @@ MainWindow::~MainWindow()
     }
     settings.endArray();
     settings.endGroup();
+
     settings.beginGroup(QStringLiteral("downloads"));
     settings.setValue(QStringLiteral("path"), m_downloadManager->path());
     settings.setValue(QStringLiteral("overwrite"), m_downloadManager->overwrite());
     settings.endGroup();
 }
 
-void MainWindow::abortTasks()
+void MainWindow::abortAllTasks()
 {
-    emit aborted();
-
-    for (auto it = m_tasks.begin(), end = m_tasks.end(); it != end;)
-    {
-        auto watcher = static_cast<QFutureWatcherBase*>(it.key());
-        watcher->cancel();
-        //Relaxed.
-        it.value().store(1);
-        watcher->waitForFinished();
-        it = m_tasks.erase(it);
-    }
+    emit friendsNetworkReplyAborted(QPrivateSignal());
+    m_friendsTaskGroup->abort();
+    emit groupsNetworkReplyAborted(QPrivateSignal());
+    m_groupsTaskGroup->abort();
+    emit audiosNetworkReplyAborted(QPrivateSignal());
+    m_audiosTaskGroup->abort();
+    //Downloads separately.
 }
 
 //static. async.
@@ -203,7 +214,7 @@ BasicItem *MainWindow::createUserItem(const QJsonValue &value, const QString &na
 void MainWindow::usersGet(int id)
 {
     //Abort async tasks and net requests if any. Wait all tasks to finish. No need mutex here.
-    abortTasks();
+    abortAllTasks();
     sourceModel<VKItemModel>(m_friends)->clear();
     sourceModel<VKItemModel>(m_groups)->clear();
     sourceModel<VKItemModel>(m_audios)->clear();
@@ -216,7 +227,7 @@ void MainWindow::usersGet(int id)
 
     auto res = m_vk->apiRequest(QStringLiteral("users.get"), query);
     connect(res, &QNetworkReply::finished, this, &MainWindow::onUsersGetFinished);
-    connect(this, &MainWindow::aborted, res, &QNetworkReply::abort);
+    connect(this, &MainWindow::networkReplyAborted, res, &QNetworkReply::abort);
 }
 
 void MainWindow::onUsersGetFinished()
@@ -279,7 +290,7 @@ void MainWindow::friendsGet(int id, int offset)
 
     auto res = m_vk->apiRequest(QStringLiteral("friends.get"), query);
     connect(res, &QNetworkReply::finished, this, &MainWindow::onFriendsGetFinished);
-    connect(this, &MainWindow::aborted, res, &QNetworkReply::abort);
+    connect(this, &MainWindow::friendsNetworkReplyAborted, res, &QNetworkReply::abort);
 
     //Loading.
     m_friendsView->setProperty("status", 1);
@@ -302,9 +313,9 @@ void MainWindow::onFriendsGetFinished()
             connect(watcher, &QFutureWatcher<void>::finished, watcher,
                     &QFutureWatcher<void>::deleteLater);
 
-            auto it = m_tasks.insert(watcher, 0);
+            const auto flag = m_friendsTaskGroup->append(watcher);
             auto future = QtConcurrent::run(this, &MainWindow::fillFriends,
-                                            val.toObject().value("items").toArray(), it.value());
+                                            val.toObject().value("items").toArray(), flag);
             watcher->setFuture(future);
         }
         else
@@ -321,13 +332,12 @@ void MainWindow::onFriendsGetFinished()
 }
 
 //async.
-void MainWindow::fillFriends(const QJsonArray &array, const QAtomicInteger<char> &abort)
+void MainWindow::fillFriends(const QJsonArray &array, const std::atomic<bool> *abort)
 {
     auto model = sourceModel<VKItemModel>(m_friends);
     for (const auto &val : array)
     {
-        //Relaxed.
-        if (abort.load())
+        if (abort->load())
             break;
         else
         {
@@ -341,8 +351,6 @@ void MainWindow::fillFriends(const QJsonArray &array, const QAtomicInteger<char>
 void MainWindow::onFriendsFillFinished()
 {
     const auto watched = static_cast<QFutureWatcher<void>*>(sender());
-    m_tasks.remove(watched);
-
     auto model = sourceModel<VKItemModel>(m_friends);
     if (!watched->isCanceled())
     {
@@ -475,7 +483,7 @@ void MainWindow::requestAudioSource(const QModelIndex &index)
         {
             onReloadSectionFinished(rep, section);
         });
-        connect(this, &MainWindow::aborted, rep, &QNetworkReply::abort);
+        connect(this, &MainWindow::audiosNetworkReplyAborted, rep, &QNetworkReply::abort);
 
         auto model = const_cast<QAbstractItemModel*>(index.model());
         for (const auto &range : section.ranges)
@@ -531,7 +539,6 @@ void MainWindow::onReloadSectionFinished(QNetworkReply *reply, const VKItemModel
         connect(watcher, &QFutureWatcher<QJsonArray>::finished,
                 [this, watcher, section]
         {
-            m_tasks.remove(watcher);
             if (!watcher->isCanceled())
                 onDecodeAudioSectionFinished(watcher->result(), section);
         });
@@ -539,7 +546,7 @@ void MainWindow::onReloadSectionFinished(QNetworkReply *reply, const VKItemModel
                 &MainWindow::deleteLater);
         connect(watcher, &QFutureWatcher<QJsonArray>::destroyed, [pList] { delete pList; });
 
-        m_tasks.insert(watcher, 0);
+        m_audiosTaskGroup->append(watcher);
         auto future = QtConcurrent::mappedReduced(*pList, MainWindow::mapAudioUrl,
                                                   MainWindow::reduceAudioUrls,
                                                   QtConcurrent::OrderedReduce);
@@ -619,7 +626,7 @@ void MainWindow::groupsGet(int id, int offset)
 
     auto res = m_vk->apiRequest(QStringLiteral("groups.get"), query);
     connect(res, &QNetworkReply::finished, this, &MainWindow::onGroupsGetFinished);
-    connect(this, &MainWindow::aborted, res, &QNetworkReply::abort);
+    connect(this, &MainWindow::groupsNetworkReplyAborted, res, &QNetworkReply::abort);
 
     //Loading.
     m_groupsView->setProperty("status", 1);
@@ -642,9 +649,9 @@ void MainWindow::onGroupsGetFinished()
             connect(watcher, &QFutureWatcher<void>::finished, watcher,
                     &QFutureWatcher<bool>::deleteLater);
 
-            auto it = m_tasks.insert(watcher, 0);
+            const auto flag = m_groupsTaskGroup->append(watcher);
             auto future = QtConcurrent::run(this, &MainWindow::fillGroups,
-                                            val.toObject().value("items").toArray(), it.value());
+                                            val.toObject().value("items").toArray(), flag);
             watcher->setFuture(future);
         }
         else
@@ -657,13 +664,12 @@ void MainWindow::onGroupsGetFinished()
 }
 
 //async.
-void MainWindow::fillGroups(const QJsonArray &array, const QAtomicInteger<char> &abort)
+void MainWindow::fillGroups(const QJsonArray &array, const std::atomic<bool> *abort)
 {
     auto model = sourceModel<VKItemModel>(m_groups);
     for (const auto &val : array)
     {
-        //Relaxed.
-        if (abort.load())
+        if (abort->load())
             break;
         else
         {
@@ -677,8 +683,6 @@ void MainWindow::fillGroups(const QJsonArray &array, const QAtomicInteger<char> 
 void MainWindow::onGroupsFillFinished()
 {
     auto watched = static_cast<QFutureWatcher<void>*>(sender());
-    m_tasks.remove(watched);
-
     auto model = sourceModel<VKItemModel>(m_groups);
     if (!watched->isCanceled())
     {
@@ -703,7 +707,7 @@ void MainWindow::audiosGet(int id, int offset)
 
     auto res = m_vk->request(QStringLiteral("al_audio.php"), query);
     connect(res, &QNetworkReply::finished, this, &MainWindow::onAudiosGetFinished);
-    connect(this, &MainWindow::aborted, res, &QNetworkReply::abort);
+    connect(this, &MainWindow::audiosNetworkReplyAborted, res, &QNetworkReply::abort);
 
     //Loading.
     m_audiosView->setProperty("status", 1);
@@ -722,7 +726,7 @@ void MainWindow::onAudiosGetFinished()
         connect(watcher, &QFutureWatcher<QJsonDocument>::finished, watcher,
                 &QFutureWatcher<QJsonDocument>::deleteLater);
 
-        m_tasks.insert(watcher, 0);
+        m_audiosTaskGroup->append(watcher);
         auto future = QtConcurrent::run<QJsonDocument>(
                     VKResponse::parseAudioSection, res->readAll(),
                     res->header(QNetworkRequest::ContentTypeHeader).toString(), nullptr);
@@ -739,7 +743,6 @@ void MainWindow::onAudiosGetFinished()
 void MainWindow::onParseAudioSectionFinished()
 {
     auto watched = static_cast<QFutureWatcher<QJsonDocument>*>(sender());
-    m_tasks.remove(watched);
     if (watched->isCanceled())
         return;
 
@@ -760,7 +763,7 @@ void MainWindow::onParseAudioSectionFinished()
                     &MainWindow::deleteLater);
             connect(watcher, &QFutureWatcher<QJsonArray>::destroyed, [pList] { delete pList; });
 
-            m_tasks.insert(watcher, 0);
+            m_audiosTaskGroup->append(watcher);
             auto future = QtConcurrent::mappedReduced(*pList, MainWindow::mapAudioUrl,
                                                       MainWindow::reduceAudioUrls,
                                                       QtConcurrent::OrderedReduce);
@@ -774,8 +777,8 @@ void MainWindow::onParseAudioSectionFinished()
             connect(watcher, &QFutureWatcher<void>::finished, watcher,
                     &QFutureWatcher<void>::deleteLater);
 
-            auto it = m_tasks.insert(watcher, 0);
-            auto future = QtConcurrent::run(this, &MainWindow::fillAudios, list, it.value(),
+            const auto flag = m_audiosTaskGroup->append(watcher);
+            auto future = QtConcurrent::run(this, &MainWindow::fillAudios, list, flag,
                                             false);
             watcher->setFuture(future);
         }
@@ -799,7 +802,7 @@ void MainWindow::onParseAudioSectionFinished()
 QJsonValue MainWindow::mapAudioUrl(const QJsonValue &val)
 {
     auto audio = val.toArray();
-    audio[2] = VKResponse::decodeAudioUrl(88986886, audio.at(2).toString());
+    audio[2] = VKResponse::decodeAudioUrl(MainWindow::user_id, audio.at(2).toString());
     return audio;
 }
 
@@ -812,7 +815,6 @@ void MainWindow::reduceAudioUrls(QJsonArray &list, const QJsonValue &val)
 void MainWindow::onDecodeAudioUrlsFinished()
 {
     auto watched = static_cast<QFutureWatcher<QJsonArray>*>(sender());
-    m_tasks.remove(watched);
     if (watched->isCanceled())
         return;
 
@@ -822,20 +824,19 @@ void MainWindow::onDecodeAudioUrlsFinished()
     connect(watcher, &QFutureWatcher<void>::finished, watcher,
             &QFutureWatcher<void>::deleteLater);
 
-    auto it = m_tasks.insert(watcher, 0);
-    auto future = QtConcurrent::run(this, &MainWindow::fillAudios, list, it.value(), true);
+    const auto flag = m_audiosTaskGroup->append(watcher);
+    auto future = QtConcurrent::run(this, &MainWindow::fillAudios, list, flag, true);
     watcher->setFuture(future);
 }
 
 //async.
-void MainWindow::fillAudios(const QJsonArray &list, const QAtomicInteger<char> &abort,
+void MainWindow::fillAudios(const QJsonArray &list, const std::atomic<bool> *abort,
                             bool considerSource)
 {
     auto model = sourceModel<VKItemModel>(m_audios);
     for (const auto &audio : list)
     {
-        //Relaxed.
-        if (abort.load())
+        if (abort->load())
             break;
 
         const auto array = audio.toArray();
@@ -874,8 +875,6 @@ void MainWindow::fillAudios(const QJsonArray &list, const QAtomicInteger<char> &
 void MainWindow::onAudiosFillFinished()
 {
     auto watched = static_cast<QFutureWatcher<void>*>(sender());
-    m_tasks.remove(watched);
-
     auto model = sourceModel<VKItemModel>(m_audios);
     if (!watched->isCanceled())
     {
@@ -896,7 +895,7 @@ void MainWindow::onLoginTriggered()
     //Q_INIT_RESOURCE(login);
 
     auto dialog = std::make_unique<VKLoginDialogQml>(
-                m_engine, QLatin1Literal("5571207"), QLatin1Literal("5.100"),
+                m_engine, QLatin1Literal("5571207"), QLatin1Literal("5.101"),
                 QStringList{QStringLiteral("audio"),
                             QStringLiteral("video"),
                             QStringLiteral("groups"),
@@ -905,6 +904,7 @@ void MainWindow::onLoginTriggered()
     {
         m_vk->setApiVersion(dialog->version());
         m_vk->setAccessToken(dialog->accessToken());
+        MainWindow::user_id = dialog->userId().toInt();
         auto cookieJar = m_vk->networkAccessManager()->cookieJar();
         for (const auto &cookie : dialog->cookies())
             cookieJar->insertCookie(cookie);
@@ -921,6 +921,31 @@ void MainWindow::onLoginTriggered()
     //If an app links statically with lib containing resource.
     //Clear that resource (login.qrc).
     //Q_CLEANUP_RESOURCE(login);
+}
+
+void MainWindow::onRefreshActionTriggered()
+{
+    switch (m_navigation->property("currentIndex").toInt())
+    {
+    case 0:
+        emit friendsNetworkReplyAborted(QPrivateSignal());
+        m_friendsTaskGroup->abort();
+        sourceModel<VKItemModel>(m_friends)->clear();
+        friendsGet(m_id);
+        break;
+    case 1:
+        emit groupsNetworkReplyAborted(QPrivateSignal());
+        m_groupsTaskGroup->abort();
+        sourceModel<VKItemModel>(m_groups)->clear();
+        groupsGet(m_id);
+        break;
+    case 2:
+        emit audiosNetworkReplyAborted(QPrivateSignal());
+        m_audiosTaskGroup->abort();
+        sourceModel<VKItemModel>(m_audios)->clear();
+        m_firstAudios = true;
+        audiosGet(m_id);
+    }
 }
 
 void MainWindow::onFilterEdited()

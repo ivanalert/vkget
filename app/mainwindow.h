@@ -3,6 +3,7 @@
 
 #include "navigationlog.h"
 #include "vkitemmodel.h"
+#include "taskgroup.h"
 
 #include <limits>
 #include <QObject>
@@ -35,7 +36,10 @@ public:
     }
 
 signals:
-    void aborted();
+    void networkReplyAborted(QPrivateSignal);
+    void friendsNetworkReplyAborted(QPrivateSignal);
+    void groupsNetworkReplyAborted(QPrivateSignal);
+    void audiosNetworkReplyAborted(QPrivateSignal);
 
 private slots:
     void onLoginTriggered();
@@ -60,6 +64,14 @@ private slots:
             usersGet(m_navLog->home());
         }
     }
+
+    void onGoToUserClicked()
+    {
+        if (m_id != MainWindow::user_id)
+            usersGet(MainWindow::user_id);
+    }
+
+    void onRefreshActionTriggered();
 
     void onFilterEdited();
 
@@ -124,16 +136,16 @@ private:
     static BasicItem* createUserItem(const QJsonValue &value, const QString &name);
     static BasicItem* createDownloadItem(BasicItem *source);
 
-    void fillFriends(const QJsonArray &array, const QAtomicInteger<char> &abort);
-    void fillGroups(const QJsonArray &array, const QAtomicInteger<char> &abort);
-    void fillAudios(const QJsonArray &list, const QAtomicInteger<char> &abort,
+    void fillFriends(const QJsonArray &array, const std::atomic<bool> *abort);
+    void fillGroups(const QJsonArray &array, const std::atomic<bool> *abort);
+    void fillAudios(const QJsonArray &list, const std::atomic<bool> *abort,
                     bool considerSource);
 
     //QtConcurrent::mapped functions.
     static QJsonValue mapAudioUrl(const QJsonValue &val);
     static void reduceAudioUrls(QJsonArray &list, const QJsonValue &val);
 
-    void abortTasks();
+    void abortAllTasks();
 
     void usersGet(int id);
     void friendsGet(int id, int offset = 0);
@@ -156,15 +168,22 @@ private:
 
     //Models guarded by ThreadsafeNode.
     QSortFilterProxyModel *m_friends;
+    TaskGroup *m_friendsTaskGroup;
     QSortFilterProxyModel *m_groups;
+    TaskGroup *m_groupsTaskGroup;
     QSortFilterProxyModel *m_audios;
+    TaskGroup *m_audiosTaskGroup;
     QSortFilterProxyModel *m_downloads;
+    TaskGroup *m_downloadsTaskGroup;
+
     Playlist *m_playlist = nullptr;
     DownloadManager *m_downloadManager = nullptr;
 
-    int m_id = std::numeric_limits<int>::max();
+    //Global id.
+    static int user_id;
+    //Current id.
+    int m_id;
 
-    QMap<QObject*, QAtomicInteger<char>> m_tasks;
     NavigationLog *m_navLog;
 
     bool m_firstAudios = true;

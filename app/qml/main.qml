@@ -147,7 +147,7 @@ ApplicationWindow {
                 Keys.onReturnPressed: { action.trigger() }
                 action: Action {
                     objectName: "refreshAction"
-                    enabled: { navigation.currentIndex < 4 }
+                    enabled: { navigation.currentIndex < 3 }
                     shortcut: StandardKey.Refresh
                 }
                 KeyNavigation.tab: homeMenuButton
@@ -178,7 +178,7 @@ ApplicationWindow {
                 placeholderText: qsTr("Filter")
                 Layout.fillWidth: true
                 enabled: { navigation.currentIndex < 5 }
-                KeyNavigation.tab: loginMenuButton
+                KeyNavigation.tab: goToUserMenuButton
 
                 onTextChanged: {
                     switch (navigation.currentIndex) {
@@ -238,6 +238,14 @@ ApplicationWindow {
             Switch {
                 text: "Search"
                 enabled: false
+            }
+
+            ToolButton {
+                id: goToUserMenuButton
+                objectName: "goToUserMenuButton"
+                text: qsTr("Go to user's page")
+                Keys.onReturnPressed: { clicked() }
+                KeyNavigation.tab: loginMenuButton
             }
 
             ToolButton {

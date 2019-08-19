@@ -14,6 +14,10 @@ SET(SOURCES
     navigationlog.h
     utilities.cpp
     utilities.h
+    taskgroup.cpp
+    taskgroup.h
+    task.cpp
+    task.h
 )
 
 if (WIN32)
