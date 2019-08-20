@@ -10,16 +10,16 @@ class VKItemModel : public BasicItemModel
 public:
     enum VKItemDataRole
     {
-        IdRole = BasicItem::FlagsRole + 1,
-        ContentIdRole,
-        SourceRole,
-        MetadataRole,
-        AudioHashRole,
-        SourceStatusRole,
-        CoverRole,
-        ThumbnailRole,
-        DownloadProgressRole,
-        ErrorRole
+        IdRole = BasicItem::FlagsRole + 1, //258
+        ContentIdRole, //259
+        SourceRole, //260
+        MetadataRole, //261
+        AudioHashRole, //262
+        SourceStatusRole, //263
+        CoverRole, //264
+        ThumbnailRole, //265
+        DownloadProgressRole, //266
+        ErrorRole //267
     };
 
     explicit VKItemModel(QObject *parent = nullptr)

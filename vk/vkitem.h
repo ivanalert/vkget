@@ -11,14 +11,14 @@ class VKItem : public BasicItem
 public:
     enum SourceStatus
     {
-        ReadyStatus,
-        LoadingStatus,
-        UnavailableStatus,
-        NoStatus,
-        DownloadingStatus,
-        DownloadPausedStatus,
-        PendingStatus,
-        ErrorStatus
+        ReadyStatus, //0
+        LoadingStatus, //1
+        UnavailableStatus, //2
+        NoStatus, //3
+        DownloadingStatus, //4
+        DownloadPausedStatus, //5
+        PendingStatus, //6
+        ErrorStatus //7
     };
 
     VKItem(const int id, const QString &name, BasicItem *parent = nullptr)

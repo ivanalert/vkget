@@ -16,6 +16,8 @@ void DownloadManager::startDownload(const QModelIndex &index)
                 m_model->setData(index, 1, VKItemModel::DownloadProgressRole);
                 m_model->setData(index, QObject::tr("File already exists"),
                                  VKItemModel::ErrorRole);
+                m_model->setData(index, VKItem::ErrorStatus, VKItemModel::SourceStatusRole);
+
                 delete file;
                 return;
             }
@@ -39,12 +41,13 @@ void DownloadManager::startDownload(const QModelIndex &index)
 
             m_downloads.insert(index, download);
             emit downloadCountChanged();
-            m_model->setData(index, VKItem::DownloadingStatus,
-                             VKItemModel::SourceStatusRole);
+            m_model->setData(index, QString(), VKItemModel::ErrorRole);
+            m_model->setData(index, VKItem::DownloadingStatus, VKItemModel::SourceStatusRole);
         }
         else
         {
             m_model->setData(index, file->errorString(), VKItemModel::ErrorRole);
+            m_model->setData(index, VKItem::ErrorStatus, VKItemModel::SourceStatusRole);
             delete file;
         }
     }
@@ -57,12 +60,12 @@ void DownloadManager::start(const QModelIndex &index)
         if (m_downloads.size() < m_downloadLimit)
         {
             const auto status = m_model->data(index, VKItemModel::SourceStatusRole).toInt();
-            if (status == VKItem::ReadyStatus)
+            if (status == VKItem::ReadyStatus || status == VKItem::ErrorStatus)
             {
                 const auto pos = compareTakePendingIndex(index);
                 startDownload(pos);
             }
-            else if (status != VKItem::UnavailableStatus)
+            else
             {
                 insertPendingIndex(index);
                 if (status == VKItem::NoStatus)
@@ -79,7 +82,8 @@ void DownloadManager::start()
     auto pos = m_model->index(0, 0);
     while (pos.isValid())
     {
-        start(pos);
+        if (pos.data(VKItemModel::SourceStatusRole).toInt() != VKItem::UnavailableStatus)
+            start(pos);
         pos = pos.siblingAtRow(pos.row() + 1);
     }
 }
@@ -150,22 +154,32 @@ void DownloadManager::onDownloadFinished()
     m_downloads.remove(index);
     emit downloadCountChanged();
 
-    m_model->setData(index, VKItem::ReadyStatus, VKItemModel::SourceStatusRole);
     if (res->error() == QNetworkReply::NoError)
     {
         QFileInfo info(*file);
         auto dir = info.dir();
         file->rename(dir.absoluteFilePath(info.completeBaseName()));
+        m_model->setData(index, VKItem::ReadyStatus, VKItemModel::SourceStatusRole);
     }
     else
     {
         file->remove();
         m_model->setData(index, 0, VKItemModel::DownloadProgressRole);
         m_model->setData(index, res->errorString(), VKItemModel::ErrorRole);
+        m_model->setData(index, VKItem::ErrorStatus, VKItemModel::SourceStatusRole);
     }
 
     delete download;
 
-    if (!m_pendingIndexes.empty())
-        start(takePendingIndex());
+    auto pos = tryTakePendingIndex();
+    while (pos.isValid())
+    {
+        if (pos.data(VKItemModel::SourceStatusRole).toInt() != VKItem::UnavailableStatus)
+        {
+            start(pos);
+            break;
+        }
+
+        pos = tryTakePendingIndex();
+    }
 }

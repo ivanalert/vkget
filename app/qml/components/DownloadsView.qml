@@ -6,6 +6,19 @@ ListView {
     highlightMoveDuration: 0
     currentIndex: 0
 
+    Keys.onPressed: {
+        switch (event.key) {
+        case Qt.Key_Home:
+            positionViewAtBeginning()
+            currentIndex = 0
+            break
+        case Qt.Key_End:
+            positionViewAtEnd()
+            currentIndex = count - 1
+            break
+        }
+    }
+
     Action {
         id: startDownload
         objectName: "startDownload"
@@ -39,6 +52,7 @@ ListView {
         anchors.left: parent.left
         anchors.right: parent.right
         height: 50
+        enabled: { linkStatus != 2 }
 
         MouseArea {
             anchors.fill: parent
@@ -60,6 +74,7 @@ ListView {
                         switch (row.linkStatus) {
                         case 0:
                         case 3:
+                        case 7:
                             return true
                         case 1:
                         case 2:
@@ -81,6 +96,7 @@ ListView {
                         case 1:
                         case 2:
                         case 3:
+                        case 7:
                             return false
                         case 4:
                             return true
@@ -113,7 +129,14 @@ ListView {
                 Label {
                     anchors.left: parent.left
                     anchors.right: parent.right
-                    text: { root.sourceStatusText(row.linkStatus) }
+                    text: {
+                        if (row.linkStatus === 7) {
+                            var str = downloads.data(downloads.index(index, 0), 267)
+                            return str ? str : ""
+                        }
+                        else
+                            root.sourceStatusText(row.linkStatus)
+                    }
                     elide: Text.ElideRight
                 }
             }
