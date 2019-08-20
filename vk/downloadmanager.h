@@ -135,13 +135,7 @@ signals:
 
 public slots:
     void start(const QModelIndex &index);
-
-    void start()
-    {
-        startFrom(m_model->index(0, 0));
-    }
-
-    void startFrom(const QModelIndex &index);
+    void start();
 
     void stop(const QModelIndex &index)
     {
@@ -197,7 +191,7 @@ private:
             }
         }
 
-        return  QModelIndex();
+        return  index;
     }
 
     QModelIndex tryTakePendingIndex()

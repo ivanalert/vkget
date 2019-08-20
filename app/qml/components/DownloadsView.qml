@@ -54,35 +54,43 @@ ListView {
             Menu {
                 id: contextMenu
 
-                onAboutToShow: {
-                    switch (row.linkStatus) {
-                    case 0:
-                        startDownload.enabled = true
-                        stopDownload.enabled = false
-                        break
-                    case 1:
-                    case 2:
-                        startDownload.enabled = false
-                        stopDownload.enabled = false
-                        break
-                    case 3:
-                        startDownload.enabled = true
-                        stopDownload.enabled = false
-                        break
-                    case 4:
-                        startDownload.enabled = false
-                        stopDownload.enabled = true
-                        break
+                MenuItem {
+                    action: startDownload
+                    enabled: {
+                        switch (row.linkStatus) {
+                        case 0:
+                        case 3:
+                            return true
+                        case 1:
+                        case 2:
+                        case 4:
+                            return false
+                        }
                     }
                 }
 
-                MenuItem { action: startDownload }
+                MenuItem {
+                    action: pauseDownload
+                }
 
-                MenuItem { action: pauseDownload }
+                MenuItem {
+                    action: stopDownload
+                    enabled: {
+                        switch (row.linkStatus) {
+                        case 0:
+                        case 1:
+                        case 2:
+                        case 3:
+                            return false
+                        case 4:
+                            return true
+                        }
+                    }
+                }
 
-                MenuItem { action: stopDownload }
-
-                MenuItem { action: resumeDownload }
+                MenuItem {
+                    action: resumeDownload
+                }
             }
         }
 
